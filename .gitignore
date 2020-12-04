@@ -15,6 +15,7 @@ node_modules
 
 # Terraform
 **/.terraform/*
+/terraform/transient
 
 # Secrets
 .DS_Store
