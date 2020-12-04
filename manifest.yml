@@ -2,13 +2,16 @@
 applications:
   - name: tta-smarthub-((env))
     instances: ((instances))
+    memory: 1.5G
     command: yarn start
     buildpacks:
+      - https://github.com/cloudfoundry/apt-buildpack.git#v0.2.2
       - nodejs_buildpack
     env:
       AUTH_BASE: ((AUTH_BASE))
       AUTH_CLIENT_ID: ((AUTH_CLIENT_ID))
       AUTH_CLIENT_SECRET: ((AUTH_CLIENT_SECRET))
+      CLAMAV_DATA_DIR: /home/vcap/deps/0/apt/var/lib/clamav
       NEW_RELIC_APP_NAME: tta-smarthub-((env))
       NEW_RELIC_LICENSE_KEY: ((NEW_RELIC_LICENSE_KEY))
       NODE_ENV: ((NODE_ENV))
@@ -19,3 +22,8 @@ applications:
     services:
       - ((rds_instance))
       - ((s3_doc_upload_bucket))
+    sidecars:
+    - name: clamav-updates
+      process_types:
+        - web
+      command: freshclam -d --config-file=/home/vcap/app/clamav/freshclam.conf
