@@ -7,6 +7,7 @@ import { logger, auditLogger } from './logger';
 import reconcileLegacyReports, { reconciliationQueue } from './services/legacyreports';
 import { scanQueue } from './services/scanQueue';
 import processFile from './workers/files';
+import { initElasticsearchIntegration } from './lib/elasticsearch';
 import {
   managerApprovalRequested,
   changesRequestedByManager,
@@ -19,6 +20,7 @@ import {
 const workers = process.env.WORKER_CONCURRENCY || 2;
 // Number of jobs per worker. Can be adjusted if clamav is getting bogged down
 const maxJobsPerWorker = process.env.MAX_JOBS_PER_WORKER || 5;
+
 
 // Pull jobs off the redis queue and process them.
 function start() {
@@ -57,6 +59,11 @@ function start() {
   notificationQueue.process('managerApproval', managerApprovalRequested);
   notificationQueue.process('reportApproved', reportApproved);
   notificationQueue.process('collaboratorAdded', notifyCollaborator);
+
+  // Elasticsearch
+  const { } = initElasticsearchIntegration();
+  startElasticsearchWorker();
+
 }
 
 // spawn workers and start them
