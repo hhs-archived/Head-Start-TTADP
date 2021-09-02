@@ -1,6 +1,5 @@
 // @ts-check
 
-import { snakeCase } from "lodash";
 import Sequelize, { Model, Transaction } from "sequelize";
 import { createAWSConnection } from "@acuris/aws-es-connection";
 import { Client, ClientOptions } from "@elastic/elasticsearch";
@@ -10,15 +9,18 @@ import { logger, auditLogger } from "../../logger";
 
 import { createElasticsearchQueue } from "./queue";
 import { createElasticsearchClient } from "./client";
-import { getElasticsearchConfiguration } from "./config";
+import {
+  getClientConfiguration,  
+} from "./config";
+import { handleHook, modelNameToIndexName } from "./utils";
 import { initElasticsearchWorker } from "./worker";
-
-export { getElasticsearchConfiguration } from "./config";
 
 /**
  * @typedef {Object} InitializeOptions
- * @param {Queue|undefined} queue
  * @param {NodeJS.ProcessEnv|Record<string,string>} env
+ * @param {boolean} configureMappings Whether to configure Elasticsearch mappings during initialization
+ * @param {boolean} configurePipelines Whether to configure Elasticsearch pipelines during initialization
+ * @param {Queue|undefined} queue
  * @param {Sequelize|undefined} sequelize
  */
 
@@ -34,11 +36,12 @@ export { getElasticsearchConfiguration } from "./config";
  */
 
 /**
- * Intitializes Elasticsearch integration for the app--incorporates Sequelize
- * hooks used to keep ES up-to-date.
+ * Intitializes Elasticsearch integration for the app.
  * @return {InitializeResult}
  */
 export function initElasticsearchIntegration({
+  configureMappings = false,
+  configurePiplines = false,
   queue = undefined,
   models = undefined,
   env = process.env,
@@ -47,29 +50,35 @@ export function initElasticsearchIntegration({
 
   queue = queue || createElasticsearchQueue();
 
-  const config = getElasticsearchConfiguration(env);
+  const config = getClientConfiguration(env);
 
   const client = createElasticsearchClient(config);
 
   const {
     indexModel,
     removeModel,
+    scheduleIndexFileJob,
     scheduleIndexModelJob,
+    scheduleRemoveFileJob,
     scheduleRemoveModelJob,
     startElasticsearchWorker,
   } = initElasticsearchWorker({
+    configureMappings,
+    configurePiplines,
     client,
     env,
     models,
     queue,
   });
 
-
-  const { ActivityReport } = models;
+  const { ActivityReport, File } = models;
 
   if (config.enabled) {
     ActivityReport.addHook("afterSave", handleHook(scheduleIndexModelJob));
     ActivityReport.addHook("afterDestroy", handleHook(scheduleRemoveModelJob));
+
+    File.addHook("afterSave", handleHook(scheduleIndexFileJob));
+    File.addHook("afterDestroy", handleHook(scheduleRemoveFileJob));
   }
 
   return {
@@ -80,8 +89,6 @@ export function initElasticsearchIntegration({
     searchActivityReports: search.bind(undefined, "ActivityReport"),
     startElasticsearchWorker,
   };
-
-
 
   /**
    * @param {string} modelName
@@ -96,29 +103,4 @@ export function initElasticsearchIntegration({
       index: modelNameToIndexName(modelName),
     });
   }
-}
-
-/**
- * Adapts a callback into a transaction-aware Sequelize hook handler.
- * @param {Function} callback 
- * @returns {Function}
- */
-export function handleHook(callback) {
-  return async (instance, { transaction }) => {
-    if (transaction) {
-      await transaction.afterCommit(() => callback(instance));
-    } else {
-      await callback(instance);
-    }
-  };
-}
-
-/**
- * Converts a Sequelize model name such that it can be used as an
- * Elasticsearch index name.
- * @param {string} modelName
- * @returns {string}
- */
-export function modelNameToIndexName(modelName) {
-  return snakeCase(modelName);
 }

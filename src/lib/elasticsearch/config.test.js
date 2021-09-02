@@ -1,10 +1,10 @@
-import { getElasticsearchConfiguration } from "./config";
+import { getClientConfiguration } from "./config";
 
 describe("Elasticsearch configuration", () => {
   describe("configuration", () => {
     describe("via ELASTICSEARCH_NODE", () => {
       test("is supported", () => {
-        const config = getElasticsearchConfiguration({
+        const config = getClientConfiguration({
           ...process.env,
           ELASTICSEARCH_NODE: "http://elasticsearch.node.example:1234",
         });
@@ -31,7 +31,7 @@ describe("Elasticsearch configuration", () => {
             },
           ],
         });
-        const config = getElasticsearchConfiguration({ VCAP_SERVICES });
+        const config = getClientConfiguration({ VCAP_SERVICES });
         expect(config).toHaveProperty("enabled", true);
         expect(config).toHaveProperty(
           "node",
@@ -43,7 +43,7 @@ describe("Elasticsearch configuration", () => {
     });
 
     test("can be disabled", () => {
-      const config = getElasticsearchConfiguration({});
+      const config = getClientConfiguration({});
       expect(config).toHaveProperty("enabled", false);
     });
 

@@ -1,17 +1,21 @@
 // @ts-check
 
 import { Client } from "@elastic/elasticsearch";
-import { logger, auditLogger } from "../../logger";
-import { Queue } from "bull";
-import { Model } from "sequelize";
-import db from "../../models";
 import { createElasticsearchQueue } from "./queue";
-import { modelNameToIndexName } from ".";
+import { downloadFile as reallyDownloadFile } from "../s3";
+import { logger } from "../../logger";
+import { MAPPINGS } from "./mappings";
+import { Model } from "sequelize";
+import { modelNameToIndexName } from "./utils";
+import { PIPELINES } from "./pipelines";
+import { Queue } from "bull";
+import db from "../../models";
 
 /**
  * @typedef {Object} InitElasticsearchWorkerOptions
+ * @param {((key: string) => Promise<{Body: Buffer}>) | undefined} downloadFile Function used to download files by key from object storage
  * @param {Client|undefined} client A pre-configured Elasticsearch client.
- * @param {NodeJS.ProcessEnv|Dict<string>|undefined} env Environment variables (process.env used if not provided).
+ * @param {Dict<string,Model>|undefined} models Set of available Sequelize models
  * @param {Queue|undefined} queue Bull queue to use
  */
 
@@ -31,19 +35,26 @@ import { modelNameToIndexName } from ".";
  * @param {InitElasticsearchWorkerOptions} options
  * @returns {InitElasticsearchWorkerResult}
  */
-export function initElasticsearchWorker({ client, env, models, queue } = {}) {
-  env = env || process.env;
-
-  models = models || db;
-
+export function initElasticsearchWorker({
+  configureMappings,
+  configurePipelines,
+  client,
+  downloadFile = reallyDownloadFile,
+  models = db,
+  queue,
+} = {}) {
   queue = queue || createElasticsearchQueue();
 
   return {
     indexModel,
+    processIndexFileJob,
     processIndexModelJob,
+    processRemoveFileJob,
     processRemoveModelJob,
     removeModel,
+    scheduleIndexFileJob,
     scheduleIndexModelJob,
+    scheduleRemoveFileJob,
     scheduleRemoveModelJob,
     startElasticsearchWorker,
   };
@@ -107,6 +118,11 @@ export function initElasticsearchWorker({ client, env, models, queue } = {}) {
     return await indexModel(instance);
   }
 
+  /**
+   * Processes a job meant to remove a record from Elasticsearch.
+   * @param {{name: "remove", data: {id: any, type: string}}} job
+   * @returns
+   */
   async function processRemoveModelJob(job) {
     const { type, id } = job.data;
 
@@ -127,7 +143,7 @@ export function initElasticsearchWorker({ client, env, models, queue } = {}) {
 
   /**
    * Removes a model from the Elasticsearch index
-   * @param {{id: any}} instance 
+   * @param {{id: any}} instance
    * @returns {Promise<Object>}
    */
   async function removeModel(instance) {
@@ -139,10 +155,127 @@ export function initElasticsearchWorker({ client, env, models, queue } = {}) {
   }
 
   /**
+   * Schedules an indexing job to run for the given file.
+   * @param {{id: number}} file
+   */
+  function scheduleIndexFileJob(file) {
+    queue.add("indexFile", {
+      id: file.id,
+    });
+  }
+
+  /**
+   * Schedules a job to remove the given File from the index.
+   * @param {{id: number}} file
+   */
+  function scheduleRemoveFileJob(file) {
+    queue.add("removeFile", {
+      id: file.id,
+    });
+  }
+
+  /**
+   * @param {{name: "indexFile", data: {id: number}}} job
+   * @returns {Promise<Boolean>} Whether or not the file was actually indexed.
+   */
+  async function processIndexFileJob(job) {
+    const {
+      data: { id },
+    } = job;
+
+    const { File } = models;
+
+    /**
+     * @type {{activityReportId: string, id: number, key: string}}
+     */
+    const file = await File.findByPk(id);
+
+    if (!file) {
+      throw new Error(`File not found: ${id}`);
+    }
+
+    /**
+     * @type {{Body: Buffer}}
+     */
+    const s3Object = await downloadFile(file.key);
+
+    await client.index({
+      index: modelNameToIndexName("File"),
+      id: String(file.id),
+      body: {
+        activityReportId: String(file.activityReportId),
+        data: s3Object.Body.toString("base64"),
+      },
+      pipeline: "attachment",
+      refresh: true,
+    });
+
+    return true;
+  }
+
+  async function processRemoveFileJob(job) {
+    const {
+      data: { id },
+    } = job;
+
+    await client.delete({
+      index: modelNameToIndexName("File"),
+      id: String(id),
+      refresh: true,
+    });
+  }
+
+  /**
    * Starts processing things on the search indexing queue.
    */
-  function startElasticsearchWorker() {
+  async function startElasticsearchWorker() {
     queue.process("indexModel", processIndexModelJob);
     queue.process("removeModel", processRemoveModelJob);
+    queue.process("indexFile", processIndexFileJob);
+    queue.process("removeFile", processRemoveFileJob);
+
+    await Promise.all(
+      [
+        configureMappings && doMappingConfig(),
+        configurePipelines && doPipelineConfig(),
+      ].filter((x) => x)
+    );
+
+    function doMappingConfig() {
+      // See mappings.js for the actual mapping configuration
+      return Object.keys(MAPPINGS).reduce(
+        (p, modelName) =>
+          p.then(async () => {
+            const mapping = MAPPINGS[modelName];
+            if (!mapping) {
+              return;
+            }
+            await client.indices.putMapping({
+              index: modelNameToIndexName(modelName),
+              body: mapping,
+            });
+          }),
+
+        Promise.resolve()
+      );
+    }
+
+    function doPipelineConfig() {
+      // Configure the attachment pipeline for processing uploaded documents
+      return Object.keys(PIPELINES).reduce(
+        (p, id) =>
+          p.then(async () => {
+            const pipeline = PIPELINES[id];
+            if (!pipeline) {
+              return;
+            }
+            await client.ingest.putPipeline({
+              id,
+              body: pipeline,
+            });
+          }),
+        Promise.resolve()
+      );
+    }
   }
 }

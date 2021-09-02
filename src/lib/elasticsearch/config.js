@@ -12,7 +12,7 @@
  * @param {NodeJS.ProcessEnv|Dict<string>|undefined} env Environment variables to consider (defaults to `process.env`).
  * @returns {ElasticsearchConfiguration}
  */
- export function getElasticsearchConfiguration(env = process.env) {
+ export function getClientConfiguration(env = process.env) {
     if (env.ELASTICSEARCH_NODE) {
       return {
         enabled: true,

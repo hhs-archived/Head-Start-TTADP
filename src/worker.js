@@ -23,7 +23,7 @@ const maxJobsPerWorker = process.env.MAX_JOBS_PER_WORKER || 5;
 
 
 // Pull jobs off the redis queue and process them.
-function start() {
+async function start() {
   // File Scanning
   scanQueue.on('failed', (job, error) => auditLogger.error(`job ${job.data.key} failed with error ${error}`));
   scanQueue.on('completed', (job, result) => {
@@ -61,9 +61,16 @@ function start() {
   notificationQueue.process('collaboratorAdded', notifyCollaborator);
 
   // Elasticsearch
-  const { startElasticsearchWorker} = initElasticsearchIntegration();
-  startElasticsearchWorker();
-
+  const { startElasticsearchWorker } = initElasticsearchIntegration({
+    // NOTE: only run ES configuration calls on the _first_ cloud.gov instance
+    configureMappings:
+      process.env.CF_INSTANCE_INDEX === "0" ||
+      process.env.CF_INSTANCE_INDEX == null,
+    configurePiplines:
+      process.env.CF_INSTANCE_INDEX === "0" ||
+      process.env.CF_INSTANCE_INDEX == null,
+  });
+  await startElasticsearchWorker();
 }
 
 // spawn workers and start them

@@ -1,4 +1,4 @@
-const { ActivityReport } = require("../../models");
+const { ActivityReport, File } = require("../../models");
 const { initElasticsearchWorker } = require("./worker");
 
 describe("Elasticsearch worker", () => {
@@ -6,6 +6,7 @@ describe("Elasticsearch worker", () => {
     test("adds to queue", () => {
       const queue = {
         add: jest.fn(),
+        process: jest.fn(),
       };
 
       const { scheduleIndexModelJob } = initElasticsearchWorker({
@@ -30,6 +31,7 @@ describe("Elasticsearch worker", () => {
     test("adds to queue", () => {
       const queue = {
         add: jest.fn(),
+        process: jest.fn(),
       };
 
       const { scheduleRemoveModelJob } = initElasticsearchWorker({
@@ -131,6 +133,128 @@ describe("Elasticsearch worker", () => {
     test.todo("does not throw when ActivityReport not found on save");
   });
 
+  describe("File support", () => {
+    [
+      ["scheduleIndexFileJob", "indexFile"],
+      ["scheduleRemoveFileJob", "removeFile"],
+    ].forEach(([funcName, jobName]) => {
+      test(funcName, () => {
+        const file = File.build({
+          id: 1234,
+        });
+        const queue = {
+          add: jest.fn(),
+          process: jest.fn(),
+        };
+
+        const result = initElasticsearchWorker({
+          queue,
+        });
+        const func = result[funcName];
+
+        func(file);
+
+        expect(queue.add).toHaveBeenCalledWith(jobName, {
+          id: 1234,
+        });
+      });
+    });
+
+    describe("processIndexFileJob", () => {
+      [
+        "UPLOADING",
+        "UPLOADED",
+        "UPLOAD_FAILED",
+        "QUEUEING_FAILED",
+        "SCANNING_QUEUED",
+        "SCANNING",
+        "SCANNING_FAILED",
+        "REJECTED",
+      ].forEach((status) => {
+        describe(status, () => {
+          test.todo(`fails`);
+        });
+      });
+
+      describe("APPROVED", () => {
+        test("succeeds", async () => {
+          const downloadFile = jest.fn();
+          downloadFile.mockResolvedValue({
+            Body: Buffer.from("hello world", "utf-8"),
+          });
+
+          const client = {
+            index: jest.fn(),
+          };
+
+          const { processIndexFileJob } = initElasticsearchWorker({
+            client,
+            downloadFile,
+            models: {
+              File: {
+                findByPk: (id) =>
+                  Promise.resolve(
+                    File.build({
+                      id,
+                      activityReportId: 99,
+                      key: "test/key",
+                    })
+                  ),
+              },
+            },
+          });
+
+          await processIndexFileJob({
+            name: "",
+            data: {
+              id: 1234,
+            },
+          });
+
+          expect(downloadFile).toHaveBeenCalledWith("test/key");
+
+          expect(client.index).toHaveBeenCalledTimes(1);
+
+          expect(client.index).toHaveBeenCalledWith({
+            index: "file",
+            id: "1234",
+            body: {
+              activityReportId: "99",
+              data: "aGVsbG8gd29ybGQ=",
+            },
+            pipeline: "attachment",
+            refresh: true,
+          });
+        });
+      });
+    });
+
+    describe("processRemoveFileJob", () => {
+      test("deletes files", async () => {
+        const client = {
+          delete: jest.fn(),
+        };
+
+        const { processRemoveFileJob } = initElasticsearchWorker({
+          client,
+        });
+
+        await processRemoveFileJob({
+          name: "removeFile",
+          data: {
+            id: 1234,
+          },
+        });
+
+        expect(client.delete).toHaveBeenCalledWith({
+          index: "file",
+          id: "1234",
+          refresh: true,
+        });
+      });
+    });
+  });
+
   describe("startElasticsearchWorker", () => {
     test("runs correct jobs", () => {
       const queue = {
@@ -138,7 +262,9 @@ describe("Elasticsearch worker", () => {
         process: jest.fn(),
       };
       const {
+        processIndexFileJob,
         processIndexModelJob,
+        processRemoveFileJob,
         processRemoveModelJob,
         startElasticsearchWorker,
       } = initElasticsearchWorker({
@@ -148,14 +274,22 @@ describe("Elasticsearch worker", () => {
 
       startElasticsearchWorker();
 
-      expect(queue.process).toHaveBeenCalledTimes(2);
+      expect(queue.process).toHaveBeenCalledTimes(4);
       expect(queue.process).toHaveBeenCalledWith(
         "indexModel",
         processIndexModelJob
       );
       expect(queue.process).toHaveBeenCalledWith(
-        "removeFromIndex",
-        processRemoveFromIndexJob
+        "removeModel",
+        processRemoveModelJob
+      );
+      expect(queue.process).toHaveBeenCalledWith(
+        "indexFile",
+        processIndexFileJob
+      );
+      expect(queue.process).toHaveBeenCalledWith(
+        "removeFile",
+        processRemoveFileJob
       );
     });
   });
