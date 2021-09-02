@@ -14,6 +14,7 @@ services:
       - POSTGRES_HOST=postgres_docker
       - REDIS_HOST=redis
       - SMTP_HOST=mailcatcher
+      - ELASTICSEARCH_NODE=http://elasticsearch:9200
     volumes:
       - ".:/app:rw"
   frontend:
@@ -41,5 +42,6 @@ services:
       - POSTGRES_HOST=postgres_docker
       - REDIS_HOST=redis
       - SMTP_HOST=mailcatcher
+      - ELASTICSEARCH_NODE=http://elasticsearch:9200
     volumes:
       - ".:/app:rw"
