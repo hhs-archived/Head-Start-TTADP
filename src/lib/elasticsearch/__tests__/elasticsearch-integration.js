@@ -1,6 +1,6 @@
-import { ActivityReport, Grantee, User, sequelize } from "../models";
-import { REPORT_STATUSES } from "../constants";
-import { initElasticsearchIntegration } from "./elasticsearch";
+import { ActivityReport, Grantee, User, sequelize } from "../../../models";
+import { REPORT_STATUSES } from "../../../constants";
+import { initElasticsearchIntegration } from "..";
 
 const USERS = {
   user: {
@@ -84,7 +84,7 @@ async function createFixtures() {
   }
 }
 
-async function deleteFixtures(removeActivityReportFromIndex) {
+async function deleteFixtures(removeModel) {
   await Promise.all(
     [
       [ActivityReport, REPORTS],
@@ -99,22 +99,18 @@ async function deleteFixtures(removeActivityReportFromIndex) {
     })
   );
 
-  if (removeActivityReportFromIndex) {
+  if (removeModel) {
     await Promise.all(
-      Object.values(REPORTS).map(({ id }) =>
-        removeActivityReportFromIndex({ id })
-      )
+      Object.values(REPORTS)
+        .map((values) => ActivityReport.build(values))
+        .map((instance) => removeModel(instance))
     );
   }
 }
 
 describe("Real live Elasticsearch", () => {
-  const {
-    enabled,
-    indexActivityReport,
-    removeActivityReportFromIndex,
-    searchActivityReports,
-  } = initElasticsearchIntegration();
+  const { enabled, indexModel, removeModel, searchActivityReports } =
+    initElasticsearchIntegration();
 
   const t = enabled ? test : test.skip;
 
@@ -123,29 +119,25 @@ describe("Real live Elasticsearch", () => {
     await createFixtures();
   });
 
-  afterAll(deleteFixtures.bind(undefined, removeActivityReportFromIndex));
+  afterAll(deleteFixtures.bind(undefined, removeModel));
 
   t("can index + delete an ActivityReport", async () => {
     const report = await ActivityReport.create(REPORTS.report1, {
       hooks: false,
     });
 
-    await indexActivityReport(report);
-    
+    await indexModel(report);
+
     const found = await searchActivityReports("rutabaga");
-    
-    expect(found.body.hits.hits.map(({ _id }) => _id)).toEqual([REPORTS.report1.id.toString()]);
 
-    await removeActivityReportFromIndex(report);
+    expect(found.body.hits.hits.map(({ _id }) => _id)).toEqual([
+      REPORTS.report1.id.toString(),
+    ]);
 
+    await removeModel(report);
 
     const foundAfterRemove = await searchActivityReports("rutabaga");
-    
-    expect(foundAfterRemove.body.hits.hits.map(({ _id }) => _id)).toEqual([]);
 
+    expect(foundAfterRemove.body.hits.hits.map(({ _id }) => _id)).toEqual([]);
   });
 });
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}

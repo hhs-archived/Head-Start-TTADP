@@ -137,6 +137,7 @@ async function saveNotes(activityReportId, notes, isGranteeNotes, transaction) {
 }
 
 async function update(newReport, report, transaction) {
+  console.error("UPDATE", newReport);
   const updatedReport = await report.update(newReport, {
     transaction,
     fields: _.keys(newReport),

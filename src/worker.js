@@ -1,5 +1,5 @@
 /* eslint-disable import/first */
-require('newrelic');
+// require('newrelic');
 
 import {} from 'dotenv/config';
 import throng from 'throng';
@@ -61,7 +61,7 @@ function start() {
   notificationQueue.process('collaboratorAdded', notifyCollaborator);
 
   // Elasticsearch
-  const { } = initElasticsearchIntegration();
+  const { startElasticsearchWorker} = initElasticsearchIntegration();
   startElasticsearchWorker();
 
 }
