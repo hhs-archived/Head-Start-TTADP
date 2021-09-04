@@ -40,6 +40,9 @@ services:
     build: elasticsearch
     environment:
       discovery.type: "single-node"
+      # These http.cors.* envs are related to running ES browsing UIs locally. They should not be used in production
+      http.cors.enabled: "true"
+      http.cors.allow-origin: "http://localhost:8081"
     ports:
       - "9200:9200"
   redis:

@@ -43,5 +43,7 @@ services:
       - REDIS_HOST=redis
       - SMTP_HOST=mailcatcher
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
+      - ELASTICSEARCH_RECREATE_INDICES_THIS_MEANS_I_WANT_TO_REINDEX_EVERYTHING=true
+      - LOG_LEVEL=debug
     volumes:
       - ".:/app:rw"

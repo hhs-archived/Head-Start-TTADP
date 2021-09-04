@@ -3,13 +3,14 @@
 import { Client } from "@elastic/elasticsearch";
 import { createElasticsearchQueue } from "./queue";
 import { downloadFile as reallyDownloadFile } from "../s3";
+import { formatModelForElasticsearch } from "./formatters";
 import { logger } from "../../logger";
-import { MAPPINGS } from "./mappings";
+import { PIPELINES} from "./pipelines";
 import { Model } from "sequelize";
 import { modelNameToIndexName } from "./utils";
-import { PIPELINES } from "./pipelines";
 import { Queue } from "bull";
 import db from "../../models";
+
 
 /**
  * @typedef {Object} InitElasticsearchWorkerOptions
@@ -36,8 +37,6 @@ import db from "../../models";
  * @returns {InitElasticsearchWorkerResult}
  */
 export function initElasticsearchWorker({
-  configureMappings,
-  configurePipelines,
   client,
   downloadFile = reallyDownloadFile,
   models = db,
@@ -63,7 +62,8 @@ export function initElasticsearchWorker({
     return await client.index({
       index: modelNameToIndexName(instance.constructor.name),
       id: String(instance.id),
-      body: instance.toJSON(),
+      body: await formatModelForElasticsearch(instance),
+      pipeline: instance.constructor.name,
       refresh: true,
     });
   }
@@ -102,8 +102,6 @@ export function initElasticsearchWorker({
   async function processIndexModelJob(job) {
     const { type, id } = job.data;
 
-    logger.info(`processIndexModelJob ${type} ${id}`);
-
     const modelType = models[type];
     if (!modelType) {
       throw new Error(`Model ${type} was not found`);
@@ -115,7 +113,19 @@ export function initElasticsearchWorker({
       throw new Error(`${type} #${id} was not found in the database.`);
     }
 
-    return await indexModel(instance);
+    logger.debug(`Sending ${type} #${id} to Elasticsearch...`);
+
+    const result = await indexModel(instance);
+
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+        `Elasticsearch indexed ${type} #${id} and said: ${JSON.stringify(
+          result
+        )}`
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -199,16 +209,26 @@ export function initElasticsearchWorker({
      */
     const s3Object = await downloadFile(file.key);
 
-    await client.index({
+    logger.debug(`Sending File #${file.id} to Elasticsearch...`);
+
+    const result = await client.index({
       index: modelNameToIndexName("File"),
       id: String(file.id),
       body: {
         activityReportId: String(file.activityReportId),
         data: s3Object.Body.toString("base64"),
       },
-      pipeline: "attachment",
+      pipeline: "File",
       refresh: true,
     });
+
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+        `Sent File #${file.id} to Elasticsearch and received ${JSON.stringify(
+          result
+        )}`
+      );
+    }
 
     return true;
   }
@@ -233,49 +253,5 @@ export function initElasticsearchWorker({
     queue.process("removeModel", processRemoveModelJob);
     queue.process("indexFile", processIndexFileJob);
     queue.process("removeFile", processRemoveFileJob);
-
-    await Promise.all(
-      [
-        configureMappings && doMappingConfig(),
-        configurePipelines && doPipelineConfig(),
-      ].filter((x) => x)
-    );
-
-    function doMappingConfig() {
-      // See mappings.js for the actual mapping configuration
-      return Object.keys(MAPPINGS).reduce(
-        (p, modelName) =>
-          p.then(async () => {
-            const mapping = MAPPINGS[modelName];
-            if (!mapping) {
-              return;
-            }
-            await client.indices.putMapping({
-              index: modelNameToIndexName(modelName),
-              body: mapping,
-            });
-          }),
-
-        Promise.resolve()
-      );
-    }
-
-    function doPipelineConfig() {
-      // Configure the attachment pipeline for processing uploaded documents
-      return Object.keys(PIPELINES).reduce(
-        (p, id) =>
-          p.then(async () => {
-            const pipeline = PIPELINES[id];
-            if (!pipeline) {
-              return;
-            }
-            await client.ingest.putPipeline({
-              id,
-              body: pipeline,
-            });
-          }),
-        Promise.resolve()
-      );
-    }
   }
 }
