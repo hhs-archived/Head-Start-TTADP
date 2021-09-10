@@ -43,6 +43,7 @@ Pipelines are configured in application code in [`lib/elasticsearch/pipelines.js
 Elasticsearch in cloud.gov is [AWS OpenSearch][aws-opensearch] (previously AWS Elasticsearch) under the hood. "OpenSearch" is AWS's fork of the Elasticsearch product. Newer versions of official Elastic clients have added code to detect when they are communicating with forked Elasticsearch servers and refuse to run. For now, pinning `@elastic/elasticsearch` to version 7.13.0 (the last version without this check) works. In the future, we may want to evaluate any official clients published by AWS / OpenSearch.
 
 [elasticsearch]: https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+[es-search-api]: https://www.elastic.co/guide/en/elasticsearch/reference/current/search-your-data.html
 [cg-elasticsearch]: https://cloud.gov/docs/services/aws-elasticsearch/
 [es-client]: https://www.npmjs.com/package/@elastic/elasticsearch/v/7.13.0
 [sequelize-hooks]: https://sequelize.org/master/manual/hooks.html
