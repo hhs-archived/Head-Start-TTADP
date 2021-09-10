@@ -29,6 +29,12 @@ export const PIPELINES = {
           properties: ["content", "title"],
         },
       },
+      // After indexing text content, remove base64-encoded file
+      {
+        remove: {
+          field: "data"
+        }
+      }
     ],
   },
 };
