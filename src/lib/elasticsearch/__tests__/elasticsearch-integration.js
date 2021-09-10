@@ -79,7 +79,6 @@ async function createFixtures() {
       await Grantee.bulkCreate(Object.values(GRANTEES), { transaction });
     });
   } catch (err) {
-    console.error(err);
     throw new Error(`Failed to create fixtures: ${err.message}`);
   }
 }
