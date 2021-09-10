@@ -58,6 +58,21 @@ resource "cloudfoundry_service_instance" "database" {
 }
 
 ###
+# Elasticsearch
+###
+
+data "cloudfoundry_service" "elasticsearch" {
+  name = "aws-elasticsearch"
+}
+
+resource "cloudfoundry_service_instance" "elasticsearch_cluster" {
+  name             = "ttahub-elasticsearch-${var.env}"
+  space            = data.cloudfoundry_space.space.id
+  service_plan     = data.cloudfoundry_service.s3.service_plans["basic"]
+  recursive_delete = true
+}
+
+###
 # S3 bucket
 ###
 
@@ -68,8 +83,7 @@ data "cloudfoundry_service" "s3" {
 resource "cloudfoundry_service_instance" "document_upload_bucket" {
   name             = "ttahub-document-upload-${var.env}"
   space            = data.cloudfoundry_space.space.id
-  service_plan     = data.cloudfoundry_service.s3.service_plans["basic"]
-  recursive_delete = true
+  service_plan     = data.cloudfoundry_service.elasticsearch.service_plans["es-dev"]
 }
 
 ###
