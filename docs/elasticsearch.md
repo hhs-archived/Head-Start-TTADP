@@ -1,6 +1,6 @@
 # Elasticsearch
 
-Elasticsearch is a document-oriented data store with a very advanced [search API][es-search-api]. In short: You throw JSON data at Elasticsearch, then later you can search that data. Elasticsearch writes happen with eventual consistency. This means it is probably not a great choice for a primary data store for typical CRUD scenarios.
+Elasticsearch is a document-oriented data store with a very advanced [search API][es-search-api]. In short: You throw JSON data at Elasticsearch, then later you can search that data. By default, Elasticsearch writes happen with eventual consistency--if you write some data, then ask Elasticsearch for it back, you might not get it, or it might not look like what you previously wrote.
 
 The TTA Hub uses [Elasticsearch][elasticsearch] to index Activity Reports and provide full-text search capabilities. In staging and production, this functionality is provided by [Cloud.gov][cg-elasticsearch]. For local development, a single Elasticsearch node is included in the `docker-compose` environment. Elasticsearch is a **secondary** datastore that should be regarded as ephemeral--over time, all Activity Report data that is written to Postgres should _also_ be written to Elasticsearch and available for searching, but it may also occasionally go out-of-sync with Postgres or need to be completely re-indexed.
 
