@@ -222,7 +222,7 @@ describe("Elasticsearch worker", () => {
               activityReportId: "99",
               data: "aGVsbG8gd29ybGQ=",
             },
-            pipeline: "attachment",
+            pipeline: "File",
             refresh: true,
           });
         });
