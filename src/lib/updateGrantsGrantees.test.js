@@ -3,7 +3,7 @@ import axios from 'axios';
 import fs from 'mz/fs';
 import updateGrantsGrantees, { processFiles } from './updateGrantsGrantees';
 import db, {
-  Grantee, Grant,
+  Grantee, Grant, Program,
 } from '../models';
 
 jest.mock('axios');
@@ -63,15 +63,17 @@ describe('Update HSES data', () => {
 
 describe('Update grants and grantees', () => {
   beforeAll(async () => {
+    await Program.destroy({ where: { id: [1, 2, 3] } });
     await Grant.destroy({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
     await Grantee.destroy({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
   });
   afterEach(async () => {
+    await Program.destroy({ where: { id: [1, 2, 3] } });
     await Grant.destroy({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
     await Grantee.destroy({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
   });
-  afterAll(() => {
-    db.sequelize.close();
+  afterAll(async () => {
+    await db.sequelize.close();
   });
   it('should import or update grantees', async () => {
     const granteesBefore = await Grantee.findAll({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
@@ -81,6 +83,16 @@ describe('Update grants and grantees', () => {
     const grantee = await Grantee.findOne({ where: { id: 1335 } });
     expect(grantee).toBeDefined();
     expect(grantee.name).toBe('Agency 1, Inc.');
+
+    const grant1 = await Grant.findOne({ where: { id: 8110 } });
+    expect(grant1.oldGrantId).toBe(7842);
+
+    const grant2 = await Grant.findOne({ where: { id: 11835 } });
+    expect(grant2.oldGrantId).toBe(2591);
+    expect(grantee.granteeType).toBe('Community Action Agency (CAA)');
+
+    const grant3 = await Grant.findOne({ where: { id: 10448 } });
+    expect(grant3.oldGrantId).toBe(null);
   });
 
   it('should import or update grants', async () => {
@@ -96,6 +108,29 @@ describe('Update grants and grantees', () => {
     expect(containsNumber).toBeTruthy();
     const totalGrants = await Grant.findAll({ where: { id: { [Op.gt]: SMALLEST_GRANT_ID } } });
     expect(totalGrants.length).toBe(11);
+  });
+
+  it('includes the grant specialists name and email', async () => {
+    await processFiles();
+    const grant = await Grant.findOne({ where: { number: '02CH01111' } });
+    expect(grant.grantSpecialistName).toBe('grant');
+    expect(grant.grantSpecialistEmail).toBe('grant@test.org');
+  });
+
+  it('includes the program specialists name and email', async () => {
+    await processFiles();
+    const grant = await Grant.findOne({ where: { number: '02CH01111' } });
+    expect(grant.programSpecialistName).toBe('program specialists');
+    expect(grant.programSpecialistEmail).toBe(null);
+  });
+
+  it('should have null for grant/program specialists names if null from HSES', async () => {
+    await processFiles();
+    const grant = await Grant.findOne({ where: { number: '90CI4444' } });
+    expect(grant.programSpecialistName).toBe(null);
+    expect(grant.programSpecialistEmail).toBe(null);
+    expect(grant.grantSpecialistName).toBe(null);
+    expect(grant.grantSpecialistEmail).toBe(null);
   });
 
   it('should not exclude grantees with only inactive grants', async () => {
@@ -142,5 +177,13 @@ describe('Update grants and grantees', () => {
     expect(grant.status).toBe('Active');
     expect(grant.regionId).toBe(5);
     expect(grant.granteeId).toBe(500);
+  });
+
+  it('should import programs', async () => {
+    await processFiles();
+    const program = await Program.findOne({ where: { id: 1 }, include: { model: Grant, as: 'grant' } });
+    expect(program.status).toBe('Inactive');
+    expect(program.grant.id).toBe(10567);
+    expect(program.programType).toBe('HS');
   });
 });

@@ -18,6 +18,7 @@ const formData = () => ({
   regionId: 1,
   deliveryMethod: 'in-person',
   ttaType: ['training'],
+  approvers: [],
   duration: '1',
   pageState: {
     1: 'in-progress',
@@ -34,7 +35,8 @@ const formData = () => ({
   participants: ['CEO / CFO / Executive'],
   programTypes: ['type 1'],
   requester: 'grantee',
-  status: REPORT_STATUSES.DRAFT,
+  calculatedStatus: REPORT_STATUSES.DRAFT,
+  submissionStatus: REPORT_STATUSES.DRAFT,
   resourcesUsed: 'eclkcurl',
   startDate: moment().format('MM/DD/YYYY'),
   targetPopulations: ['target 1'],
@@ -54,7 +56,7 @@ const renderActivityReport = (id, location = 'activity-summary', showLastUpdated
           state: { showLastUpdatedTime }, hash: '', pathname: '', search: '',
         }}
         user={{
-          id: userId, name: 'Walter Burns', role: 'Reporter', permissions: [{ regionId: 1, scopeId: SCOPE_IDS.READ_WRITE_ACTIVITY_REPORTS }],
+          id: userId, name: 'Walter Burns', role: ['Reporter'], permissions: [{ regionId: 1, scopeId: SCOPE_IDS.READ_WRITE_ACTIVITY_REPORTS }],
         }}
       />
     </Router>,
@@ -211,7 +213,7 @@ describe('ActivityReport', () => {
       let information = await screen.findByRole('group', { name: 'Who was the activity for?' });
 
       const grantee = within(information).getByLabelText('Grantee');
-      await fireEvent.click(grantee);
+      fireEvent.click(grantee);
 
       let granteeSelectbox = await screen.findByRole('textbox', { name: 'Grantee name(s) (Required)' });
       reactSelectEvent.openMenu(granteeSelectbox);
@@ -220,8 +222,8 @@ describe('ActivityReport', () => {
 
       information = await screen.findByRole('group', { name: 'Who was the activity for?' });
       const nonGrantee = within(information).getByLabelText('Non-Grantee');
-      await fireEvent.click(nonGrantee);
-      await fireEvent.click(grantee);
+      fireEvent.click(nonGrantee);
+      fireEvent.click(grantee);
 
       granteeSelectbox = await screen.findByLabelText(/grantee name\(s\)/i);
       expect(within(granteeSelectbox).queryByText('Grantee Name')).toBeNull();
@@ -255,6 +257,7 @@ describe('ActivityReport', () => {
 
       // expect everything to be ok
       expect(endDate).toBeEnabled();
+      await screen.findAllByDisplayValue('12/26/1967');
     });
 
     it('unflattens resources properly', async () => {

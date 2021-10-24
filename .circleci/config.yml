@@ -5,10 +5,10 @@ executors:
   docker-executor:
     # for docker you must specify an image to use for the primary container
     docker:
-      - image: circleci/node:14.16.1-browsers
+      - image: circleci/node:14.17.6-browsers
   docker-postgres-executor:
     docker:
-      - image: circleci/node:14.16.1-browsers
+      - image: circleci/node:14.17.6-browsers
         environment:
           DATABASE_URL: postgresql://postgres@localhost/ttasmarthub
       - image: circleci/postgres:12.4-ram
@@ -149,6 +149,10 @@ parameters:
     type: string
   dev_git_url:
     description: "URL of github repo that will deploy to dev"
+    default: "https://github.com/HHS/Head-Start-TTADP"
+    type: string
+  sandbox_git_url:
+    description: "URL of github repo that will deploy to dev"
     default: "https://github.com/adhocteam/Head-Start-TTADP"
     type: string
   prod_git_branch:
@@ -159,12 +163,12 @@ parameters:
     description: "Name of github branch that will deploy to staging"
     default: "main"
     type: string
-  dev_git_branch:
+  dev_git_branch: # change to feature branch to test deployment
     description: "Name of github branch that will deploy to dev"
-    default: "main"
+    default: "kw-delete-reports-script"
     type: string
   sandbox_git_branch:  # change to feature branch to test deployment
-    default: "js-152-add-loader"
+    default: "kw-delete-reports-script"
     type: string
   prod_new_relic_app_id:
     default: "877570491"
@@ -186,16 +190,16 @@ jobs:
       - create_combined_yarnlock
       - restore_cache:
           keys:
-            # To manually bust the cache, increment the version e.g. v5-yarn...
-            - v5-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
+            # To manually bust the cache, increment the version e.g. v6-yarn...
+            - v6-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
             # If checksum is new, restore partial cache
-            - v5-yarn-deps-
+            - v6-yarn-deps-
       - run: yarn deps
       - save_cache:
           paths:
             - node_modules
             - frontend/node_modules
-          key: v5-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
+          key: v6-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
       - run:
           name: Lint backend
           command: yarn lint:ci
@@ -317,7 +321,7 @@ jobs:
       - run:
           name: Run axe
           command: |
-            sleep 5
+            sleep 10
             yarn axe:ci
       - store_artifacts:
           path: reports/
@@ -340,7 +344,7 @@ jobs:
       - when:  # sandbox: for short-term feature development, see README.md
           condition:
             and:
-              - equal: [<< pipeline.project.git_url >>, << pipeline.parameters.dev_git_url >>]
+              - equal: [<< pipeline.project.git_url >>, << pipeline.parameters.sandbox_git_url >>]
               - equal: [<< pipeline.git.branch >>, << pipeline.parameters.sandbox_git_branch >>]
           steps:
             - cf_deploy:

@@ -4,10 +4,10 @@
   "description": "Office of Head Start Training & Technical Assistance Data Platform\r =============================================",
   "main": "index.js",
   "engines": {
-    "node": "14.16.1"
+    "node": "14.17.6"
   },
   "scripts": {
-    "axe:ci": "axe --exit --load-delay 1000 `cat axe-urls` --dir ./reports/ --chromedriver-path=\"node_modules/chromedriver/bin/chromedriver\"",
+    "axe:ci": "axe --exit --show-errors --load-delay 1000 `cat axe-urls` --dir ./reports/ --chromedriver-path=\"node_modules/chromedriver/bin/chromedriver\"",
     "build": "./node_modules/.bin/babel src -d ./build/server && ./node_modules/.bin/babel config -d build/config",
     "deps:local": "yarn install && yarn --cwd frontend install",
     "deps": "yarn install --frozen-lockfile && yarn --cwd frontend install --frozen-lockfile",
@@ -39,12 +39,15 @@
     "db:migrate:ci": "cross-env POSTGRES_USERNAME=postgres POSTGRES_DB=ttasmarthub node_modules/.bin/sequelize db:migrate",
     "db:migrate:prod": "node_modules/.bin/sequelize db:migrate --options-path .production.sequelizerc",
     "db:migrate:undo": "node_modules/.bin/sequelize db:migrate:undo",
-    "db:migrate:undo:prod": "node_modules/.bin/sequelize db:migrate:undo:all --options-path .production.sequelizerc",
+    "db:migrate:undo:prod:last": "node_modules/.bin/sequelize db:migrate:undo --options-path .production.sequelizerc",
+    "db:migrate:undo:prod:all": "node_modules/.bin/sequelize db:migrate:undo:all --options-path .production.sequelizerc",
     "db:seed": "node_modules/.bin/sequelize db:seed:all",
     "db:seed:ci": "cross-env POSTGRES_USERNAME=postgres POSTGRES_DB=ttasmarthub node_modules/.bin/sequelize db:seed:all",
     "db:seed:prod": "node_modules/.bin/sequelize db:seed:all --options-path .production.sequelizerc",
     "db:seed:undo": "node_modules/.bin/sequelize db:seed:undo:all",
     "db:seed:undo:prod": "node_modules/.bin/sequelize db:seed:undo:all --options-path .production.sequelizerc",
+    "db:transitionToMultApprovers": "node ./build/server/tools/transitionToMultApproversCLI.js",
+    "db:transitionToMultApprovers:local": "./node_modules/.bin/babel-node ./src/tools/transitionToMultApproversCLI.js",
     "docker:deps": "docker-compose run --rm backend yarn install && docker-compose run --rm frontend yarn install",
     "docker:reset": "./bin/reset-all",
     "docker:start": "docker-compose up",
@@ -74,7 +77,11 @@
     "updateReasonNames": "node ./build/server/tools/updateReasonNamesCLI.js",
     "updateReasonNames:local": "./node_modules/.bin/babel-node ./src/tools/updateReasonNamesCLI.js",
     "addMissingGrantsToReports": "node ./build/server/tools/addMissingGrantsToReportsCLI.js",
-    "addMissingGrantsToReports:local": "./node_modules/.bin/babel-node ./src/tools/addMissingGrantsToReportsCLI.js"
+    "addMissingGrantsToReports:local": "./node_modules/.bin/babel-node ./src/tools/addMissingGrantsToReportsCLI.js",
+    "processData": "node ./build/server/tools/processDataCLI.js",
+    "processData:local": "./node_modules/.bin/babel-node ./src/tools/processDataCLI.js",
+    "changeReportStatus": "node ./build/server/tools/changeReportStatusCLI.js",
+    "changeReportStatus:local": "./node_modules/.bin/babel-node ./src/tools/changeReportStatusCLI.js"
   },
   "repository": {
     "type": "git",
@@ -110,6 +117,9 @@
       "<rootDir>/frontend/"
     ],
     "testTimeout": 30000,
+    "coveragePathIgnorePatterns": [
+      "<rootDir>/src/middleware/newRelicMiddleware.js"
+    ],
     "coverageThreshold": {
       "global": {
         "statements": 90,
@@ -170,6 +180,7 @@
     "aws-sdk": "^2.826.0",
     "axios": "^0.21.1",
     "bull": "^3.20.1",
+    "cheerio": "^1.0.0-rc.10",
     "client-oauth2": "^4.3.3",
     "cookie-session": "^1.4.0",
     "cron": "^1.8.2",
@@ -181,6 +192,7 @@
     "express": "^4.17.1",
     "express-unless": "^0.5.0",
     "express-winston": "^4.0.5",
+    "faker": "^5.5.3",
     "file-type": "^16.1.0",
     "form-data": "^4.0.0",
     "helmet": "^4.1.0",
@@ -200,6 +212,7 @@
     "validator": "^13.5.2",
     "winston": "^3.3.3",
     "xml2json": "^0.12.0",
-    "yargs": "^16.1.1"
+    "yargs": "^16.1.1",
+    "yayson": "^2.1.0"
   }
 }

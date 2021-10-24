@@ -35,12 +35,17 @@ module.exports = (sequelize, DataTypes) => {
     },
     cdi: DataTypes.BOOLEAN,
     status: DataTypes.STRING,
+    grantSpecialistName: DataTypes.STRING,
+    grantSpecialistEmail: DataTypes.STRING,
+    programSpecialistName: DataTypes.STRING,
+    programSpecialistEmail: DataTypes.STRING,
     startDate: DataTypes.DATE,
     endDate: DataTypes.DATE,
     granteeId: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    oldGrantId: DataTypes.INTEGER,
     name: {
       type: DataTypes.VIRTUAL,
       get() {

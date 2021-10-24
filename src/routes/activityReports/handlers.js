@@ -1,13 +1,15 @@
 import stringify from 'csv-stringify/lib/sync';
 import handleErrors from '../../lib/apiErrorHandler';
 import SCOPES from '../../middleware/scopeConstants';
+import {
+  sequelize, ActivityReport as ActivityReportModel, ActivityReportApprover, User as UserModel,
+} from '../../models';
 import ActivityReport from '../../policies/activityReport';
 import User from '../../policies/user';
 import {
   possibleRecipients,
   activityReportById,
   createOrUpdate,
-  review,
   activityReports,
   setStatus,
   activityReportAlerts,
@@ -16,17 +18,18 @@ import {
   getAllDownloadableActivityReportAlerts,
   getAllDownloadableActivityReports,
 } from '../../services/activityReports';
-import { goalsForGrants } from '../../services/goals';
+import { upsertApprover, syncApprovers } from '../../services/activityReportApprovers';
+import { goalsForGrants, copyGoalsToGrants } from '../../services/goals';
 import { userById, usersWithPermissions } from '../../services/users';
-import { REPORT_STATUSES, DECIMAL_BASE } from '../../constants';
+import { APPROVER_STATUSES, REPORT_STATUSES, DECIMAL_BASE } from '../../constants';
 import { getUserReadRegions, setReadRegions } from '../../services/accessValidation';
 
 import { logger } from '../../logger';
 import {
-  managerApprovalNotification,
+  approverAssignedNotification,
   changesRequestedNotification,
   reportApprovedNotification,
-  collaboratorAddedNotification,
+  collaboratorAssignedNotification,
 } from '../../lib/mailer';
 import { activityReportToCsvRecord, extractListOfGoalsAndObjectives } from '../../lib/transform';
 
@@ -38,6 +41,8 @@ const logContext = {
   namespace,
 };
 
+export const LEGACY_WARNING = 'Reports done before March 1, 2021 may have blank fields. These were done in a SmartSheet, not the TTA Hub.';
+
 async function sendActivityReportCSV(reports, res) {
   const csvRows = await Promise.all(reports.map((r) => activityReportToCsvRecord(r)));
 
@@ -47,6 +52,8 @@ async function sendActivityReportCSV(reports, res) {
     quoted: true,
     quoted_empty: true,
   };
+
+  let warning = '';
 
   // if we have some rows, we need to extract a list of goals and objectives and format the columns
   if (csvRows.length > 0) {
@@ -161,9 +168,11 @@ async function sendActivityReportCSV(reports, res) {
           key: 'lastSaved',
           header: 'Last saved',
         },
-
       ],
     };
+
+    warning = `"${LEGACY_WARNING}"${options.columns.map(() => ',')}`;
+    warning = `${warning.substring(0, warning.length - 1)}\n`;
   }
 
   const csvData = stringify(
@@ -172,7 +181,7 @@ async function sendActivityReportCSV(reports, res) {
   );
 
   res.attachment('activity-reports.csv');
-  res.send(csvData);
+  res.send(`${warning}${csvData}`);
 }
 
 export async function updateLegacyFields(req, res) {
@@ -257,7 +266,7 @@ export async function getApprovers(req, res) {
 }
 
 /**
- * Review a report setting it's status to approved or needs action
+ * Review a report, setting Approver status to approved or needs action
  *
  * @param {*} req - request
  * @param {*} res - response
@@ -265,9 +274,10 @@ export async function getApprovers(req, res) {
 export async function reviewReport(req, res) {
   try {
     const { activityReportId } = req.params;
-    const { status, managerNotes } = req.body;
+    const { status, note } = req.body;
+    const { userId } = req.session;
 
-    const user = await userById(req.session.userId);
+    const user = await userById(userId);
     const report = await activityReportById(activityReportId);
     const authorization = new ActivityReport(user, report);
 
@@ -275,14 +285,33 @@ export async function reviewReport(req, res) {
       res.sendStatus(403);
       return;
     }
-    const savedReport = await review(report, status, managerNotes);
-    if (status === REPORT_STATUSES.NEEDS_ACTION) {
-      changesRequestedNotification(savedReport);
+
+    const transaction = await sequelize.transaction(async () => { });
+    const savedApprover = await upsertApprover({
+      status,
+      note,
+      activityReportId,
+      userId,
+    }, transaction);
+
+    const reviewedReport = await activityReportById(activityReportId);
+
+    if (reviewedReport.calculatedStatus === REPORT_STATUSES.APPROVED) {
+      if (reviewedReport.activityRecipientType === 'grantee') {
+        await copyGoalsToGrants(
+          reviewedReport.goals,
+          reviewedReport.activityRecipients.map((recipient) => recipient.activityRecipientId),
+          transaction,
+        );
+      }
+      reportApprovedNotification(reviewedReport);
     }
-    if (status === REPORT_STATUSES.APPROVED) {
-      reportApprovedNotification(savedReport);
+
+    if (reviewedReport.calculatedStatus === REPORT_STATUSES.NEEDS_ACTION) {
+      changesRequestedNotification(reviewedReport, savedApprover);
     }
-    res.json(savedReport);
+
+    res.json(savedApprover);
   } catch (error) {
     await handleErrors(req, res, error, logContext);
   }
@@ -309,7 +338,7 @@ export async function resetToDraft(req, res) {
 }
 
 /**
- * Mark activity report status as deleted
+ * Mark activity report submissionStatus as deleted
  *
  * @param {*} req - request
  * @param {*} res - response
@@ -327,7 +356,7 @@ export async function softDeleteReport(req, res) {
       return;
     }
 
-    await setStatus(report, REPORT_STATUSES.DELETED);
+    setStatus(report, REPORT_STATUSES.DELETED);
     res.sendStatus(204);
   } catch (error) {
     await handleErrors(req, res, error, logContext);
@@ -335,17 +364,14 @@ export async function softDeleteReport(req, res) {
 }
 
 /**
- * Flags a report as submitted for approval
- *
+ * Submit a report to managers for approval
  * @param {*} req - request
  * @param {*} res - response
  */
 export async function submitReport(req, res) {
   try {
     const { activityReportId } = req.params;
-    const { approvingManagerId, additionalNotes } = req.body;
-    const newReport = { approvingManagerId, additionalNotes };
-    newReport.status = REPORT_STATUSES.SUBMITTED;
+    const { approverUserIds, additionalNotes } = req.body;
 
     const user = await userById(req.session.userId);
     const report = await activityReportById(activityReportId);
@@ -356,9 +382,44 @@ export async function submitReport(req, res) {
       return;
     }
 
-    const savedReport = await createOrUpdate(newReport, report);
-    managerApprovalNotification(savedReport);
-    res.json(savedReport);
+    // Update Activity Report notes and submissionStatus
+    const savedReport = await createOrUpdate({
+      additionalNotes,
+      submissionStatus: REPORT_STATUSES.SUBMITTED,
+    }, report);
+
+    // Create, restore or destroy this report's approvers
+    const currentApprovers = await syncApprovers(activityReportId, approverUserIds);
+
+    // This will send notification to everyone marked as an approver.
+    // This may need to be adjusted in future to only send notification to
+    // approvers who are not in approved status.
+    approverAssignedNotification(savedReport, currentApprovers);
+
+    // Resubmitting resets any needs_action status to null ("pending" status)
+    await ActivityReportApprover.update({ status: null }, {
+      where: { status: APPROVER_STATUSES.NEEDS_ACTION, activityReportId },
+      individualHooks: true,
+    });
+
+    const response = await ActivityReportModel.findByPk(activityReportId, {
+      attributes: ['id', 'calculatedStatus'],
+      include: [
+        {
+          model: ActivityReportApprover,
+          attributes: ['id', 'status', 'note'],
+          as: 'approvers',
+          required: false,
+          include: [
+            {
+              model: UserModel,
+              attributes: ['id', 'name', 'role', 'fullName'],
+            },
+          ],
+        },
+      ],
+    });
+    res.json(response);
   } catch (error) {
     await handleErrors(req, res, error, logContext);
   }
@@ -462,12 +523,12 @@ export async function saveReport(req, res) {
     // since we may not get all fields in the request body
     const savedReport = await createOrUpdate({ ...report, ...newReport }, report);
     if (savedReport.collaborators) {
-    // only include collaborators that aren't already in the report
+      // only include collaborators that aren't already in the report
       const newCollaborators = savedReport.collaborators.filter((c) => {
         const oldCollaborators = report.collaborators.map((x) => x.email);
         return !oldCollaborators.includes(c.email);
       });
-      collaboratorAddedNotification(savedReport, newCollaborators);
+      collaboratorAssignedNotification(savedReport, newCollaborators);
     }
 
     res.json(savedReport);
@@ -490,7 +551,7 @@ export async function createReport(req, res) {
       return;
     }
     const userId = parseInt(req.session.userId, 10);
-    newReport.status = REPORT_STATUSES.DRAFT;
+    newReport.submissionStatus = REPORT_STATUSES.DRAFT;
     newReport.userId = userId;
     newReport.lastUpdatedById = userId;
     const user = await userById(req.session.userId);
@@ -502,7 +563,7 @@ export async function createReport(req, res) {
 
     const report = await createOrUpdate(newReport);
     if (report.collaborators) {
-      collaboratorAddedNotification(report, report.collaborators);
+      collaboratorAssignedNotification(report, report.collaborators);
     }
     res.json(report);
   } catch (error) {
@@ -520,15 +581,9 @@ export async function downloadReports(req, res) {
   try {
     const readRegions = await getUserReadRegions(req.session.userId);
 
-    const user = await userById(req.session.userId);
-
-    const policy = new ActivityReport(user);
-    const canSeeBehindFeatureFlags = policy.canSeeBehindFeatureFlags();
-
     const reportsWithCount = await getDownloadableActivityReportsByIds(
       readRegions,
       req.query,
-      canSeeBehindFeatureFlags,
     );
 
     const { format = 'json' } = req.query || {};
@@ -548,14 +603,10 @@ export async function downloadReports(req, res) {
 export async function downloadAllReports(req, res) {
   try {
     const readRegions = await setReadRegions(req.query, req.session.userId);
-    const user = await userById(req.session.userId);
-    const policy = new ActivityReport(user);
-    const canSeeBehindFeatureFlags = policy.canSeeBehindFeatureFlags();
 
     const reportsWithCount = await getAllDownloadableActivityReports(
       readRegions['region.in'],
       { ...readRegions, limit: null },
-      canSeeBehindFeatureFlags,
     );
 
     const rows = reportsWithCount ? reportsWithCount.rows : [];

@@ -12,18 +12,22 @@ describe('authMiddleware', () => {
     process.env = { ...ORIGINAL_ENV }; // make a copy
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     process.env = ORIGINAL_ENV; // restore original env
-    db.sequelize.close();
+    await db.sequelize.close();
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
   });
 
   const mockUser = {
-    id: 63,
+    id: 66349,
     name: 'Auth Middleware',
-    hsesUserId: '63',
+    hsesUserId: '66349',
     hsesUsername: 'auth.middleware',
     permissions: [{
-      userId: 63,
+      userId: 66349,
       regionId: 14,
       scopeId: SCOPES.SITE_ACCESS,
     }],
@@ -45,7 +49,7 @@ describe('authMiddleware', () => {
 
   it('should allow access if user data is present', async () => {
     await setupUser(mockUser);
-    process.env.CURRENT_USER_ID = 63;
+    process.env.CURRENT_USER_ID = 66349;
 
     const mockNext = jest.fn();
     const mockSession = jest.fn();

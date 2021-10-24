@@ -1,12 +1,15 @@
 import _ from 'lodash';
 import { Op } from 'sequelize';
+import moment from 'moment';
 import { REPORT_STATUSES, DECIMAL_BASE, REPORTS_PER_PAGE } from '../constants';
 import orderReportsBy from '../lib/orderReportsBy';
 import { filtersToScopes } from '../scopes/activityReport';
 import { setReadRegions } from './accessValidation';
+import { syncApprovers } from './activityReportApprovers';
 
 import {
   ActivityReport,
+  ActivityReportApprover,
   ActivityReportCollaborator,
   sequelize,
   ActivityRecipient,
@@ -20,9 +23,7 @@ import {
   Objective,
 } from '../models';
 
-import {
-  saveGoalsForReport, copyGoalsToGrants,
-} from './goals';
+import { saveGoalsForReport } from './goals';
 
 import { saveObjectivesForReport } from './objectives';
 
@@ -148,32 +149,6 @@ async function create(report, transaction) {
   return ActivityReport.create(report, { transaction });
 }
 
-export async function review(report, status, managerNotes) {
-  let updatedReport;
-  await sequelize.transaction(async (transaction) => {
-    updatedReport = await report.update({
-      status,
-      managerNotes,
-    },
-    {
-      fields: ['status', 'managerNotes'],
-      transaction,
-    });
-
-    if (status === REPORT_STATUSES.APPROVED) {
-      if (report.activityRecipientType === 'grantee') {
-        await copyGoalsToGrants(
-          report.goals,
-          report.activityRecipients.map((recipient) => recipient.activityRecipientId),
-          transaction,
-        );
-      }
-    }
-  });
-
-  return updatedReport;
-}
-
 export function activityReportByLegacyId(legacyId) {
   return ActivityReport.findOne({
     where: {
@@ -189,6 +164,19 @@ export function activityReportByLegacyId(legacyId) {
         },
         as: 'attachments',
         required: false,
+      },
+      {
+        model: ActivityReportApprover,
+        attributes: ['id', 'status', 'note'],
+        as: 'approvers',
+        required: false,
+        separate: true,
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'name', 'role', 'fullName'],
+          },
+        ],
       },
     ],
   });
@@ -247,6 +235,7 @@ export function activityReportById(activityReportId) {
       {
         model: User,
         as: 'collaborators',
+        required: false,
       },
       {
         model: File,
@@ -284,9 +273,17 @@ export function activityReportById(activityReportId) {
         separate: true,
       },
       {
-        model: User,
-        as: 'approvingManager',
+        model: ActivityReportApprover,
+        attributes: ['id', 'status', 'note'],
+        as: 'approvers',
         required: false,
+        separate: true,
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'name', 'role', 'fullName'],
+          },
+        ],
       },
     ],
     order: [
@@ -314,9 +311,12 @@ export function activityReports(
 ) {
   const scopes = filtersToScopes(filters);
 
+  const endDte = moment().format('MM/DD/yyyy');
+
   const where = {
-    status: REPORT_STATUSES.APPROVED,
+    calculatedStatus: REPORT_STATUSES.APPROVED,
     [Op.and]: scopes,
+    startDate: { [Op.gte]: '2020-09-01', [Op.lte]: endDte },
   };
 
   if (excludeLegacy) {
@@ -332,7 +332,7 @@ export function activityReports(
         'startDate',
         'lastSaved',
         'topics',
-        'status',
+        'calculatedStatus',
         'regionId',
         'updatedAt',
         'sortedTopics',
@@ -390,6 +390,18 @@ export function activityReports(
           as: 'collaborators',
           through: { attributes: [] },
         },
+        {
+          model: ActivityReportApprover,
+          attributes: ['id', 'status', 'note'],
+          as: 'approvers',
+          required: false,
+          include: [
+            {
+              model: User,
+              attributes: ['id', 'name', 'role', 'fullName'],
+            },
+          ],
+        },
       ],
       order: orderReportsBy(sortBy, sortDir),
       offset,
@@ -404,9 +416,9 @@ export function activityReports(
 /**
  * Retrieves alerts based on the following logic:
  * One or both of these high level conditions are true -
- * manager - approvingManagerId matches and report status is submitted.
- * specialist - author id or one of the collaborator's id matches and status is not approved nor
- * submitted.
+ * manager - assigned to approve and report is 'submitted' or 'needs_action'.
+ * specialist - author id or one of the collaborator's id matches and calculatedStatus is not
+ * 'approved'.
  * @param {*} userId
  */
 export async function activityReportAlerts(userId, {
@@ -420,17 +432,17 @@ export async function activityReportAlerts(userId, {
       [Op.or]: [
         {
           [Op.or]: [
-            { status: REPORT_STATUSES.SUBMITTED },
-            { status: REPORT_STATUSES.NEEDS_ACTION },
+            { calculatedStatus: REPORT_STATUSES.SUBMITTED },
+            { calculatedStatus: REPORT_STATUSES.NEEDS_ACTION },
           ],
-          approvingManagerId: userId,
+          '$approvers.userId$': userId,
         },
         {
           [Op.and]: [
             {
               [Op.and]: [
                 {
-                  status: { [Op.ne]: REPORT_STATUSES.APPROVED },
+                  calculatedStatus: { [Op.ne]: REPORT_STATUSES.APPROVED },
                 },
               ],
             },
@@ -446,10 +458,9 @@ export async function activityReportAlerts(userId, {
       'id',
       'displayId',
       'startDate',
-      'status',
+      'calculatedStatus',
       'regionId',
       'userId',
-      'approvingManagerId',
       sequelize.literal(
         '(SELECT name as authorName FROM "Users" WHERE "Users"."id" = "ActivityReport"."userId")',
       ),
@@ -464,6 +475,8 @@ export async function activityReportAlerts(userId, {
         // eslint-disable-next-line quotes
         `(SELECT "Grantees".name as granteeName FROM "Grantees" INNER JOIN "ActivityRecipients" ON "ActivityReport"."id" = "ActivityRecipients"."activityReportId" JOIN "Grants" ON "Grants"."id" = "ActivityRecipients"."grantId" AND "Grantees"."id" = "Grants"."granteeId" order by granteeName ${sortDir} limit 1)`,
       ),
+      // eslint-disable-next-line quotes
+      [sequelize.literal(`(SELECT  CASE WHEN COUNT(1) = 0 THEN '0' ELSE  CONCAT(SUM(CASE WHEN COALESCE("ActivityReportApprovers".status,'needs_action') = 'approved' THEN 1 ELSE 0 END), ' of ', COUNT(1)) END FROM "ActivityReportApprovers" WHERE "ActivityReportApprovers"."activityReportId" = "ActivityReport"."id" AND "deletedAt" IS NULL limit 1)`), 'pendingApprovals'],
     ],
     include: [
       {
@@ -504,6 +517,18 @@ export async function activityReportAlerts(userId, {
         duplicating: true,
         through: { attributes: [] },
       },
+      {
+        model: ActivityReportApprover,
+        attributes: ['id', 'status', 'note'],
+        as: 'approvers',
+        required: false,
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'name', 'role', 'fullName'],
+          },
+        ],
+      },
     ],
     order: orderReportsBy(sortBy, sortDir),
     offset,
@@ -517,13 +542,14 @@ export async function activityReportAlerts(userId, {
 export async function createOrUpdate(newActivityReport, report) {
   let savedReport;
   const {
+    approvers,
+    approverUserIds,
     goals,
     objectivesWithGoals,
     objectivesWithoutGoals,
     collaborators,
     activityRecipients,
     attachments,
-    approvingManager,
     author,
     granteeNextSteps,
     specialistNextSteps,
@@ -549,7 +575,6 @@ export async function createOrUpdate(newActivityReport, report) {
     } else {
       savedReport = await create(updatedFields, transaction);
     }
-
     if (collaborators) {
       const { id } = savedReport;
       const newCollaborators = collaborators.map(
@@ -557,7 +582,6 @@ export async function createOrUpdate(newActivityReport, report) {
       );
       await saveReportCollaborators(id, newCollaborators, transaction);
     }
-
     if (activityRecipients) {
       const { activityRecipientType, id } = savedReport;
       const activityRecipientIds = activityRecipients.map(
@@ -565,12 +589,10 @@ export async function createOrUpdate(newActivityReport, report) {
       );
       await saveReportRecipients(id, activityRecipientIds, activityRecipientType, transaction);
     }
-
     if (granteeNextSteps) {
       const { id } = savedReport;
       await saveNotes(id, granteeNextSteps, true, transaction);
     }
-
     if (specialistNextSteps) {
       const { id } = savedReport;
       await saveNotes(id, specialistNextSteps, false, transaction);
@@ -582,10 +604,10 @@ export async function createOrUpdate(newActivityReport, report) {
      */
 
     const recipientType = () => {
-      if (allFields.activityRecipientType) {
+      if (allFields && allFields.activityRecipientType) {
         return allFields.activityRecipientType;
       }
-      if (report.activityRecipientType) {
+      if (report && report.activityRecipientType) {
         return report.activityRecipientType;
       }
 
@@ -599,15 +621,18 @@ export async function createOrUpdate(newActivityReport, report) {
     } else if (activityRecipientType === 'grantee' && goals) {
       await saveGoalsForReport(goals, savedReport, transaction);
     }
+
+    // Approvers are removed if approverUserIds is an empty array
+    if (approverUserIds) {
+      await syncApprovers(savedReport.id, approverUserIds, transaction);
+    }
   });
+
   return activityReportById(savedReport.id);
 }
 
 export async function setStatus(report, status) {
-  const updatedReport = await report.update({ status }, {
-    fields: ['status'],
-  });
-  return updatedReport;
+  return report.update({ submissionStatus: status });
 }
 
 /*
@@ -649,7 +674,7 @@ async function getDownloadableActivityReports(where) {
   return ActivityReport.findAndCountAll(
     {
       where,
-      attributes: { include: ['displayId'], exclude: ['imported', 'legacyId', 'managerNotes', 'additionalNotes'] },
+      attributes: { include: ['displayId'], exclude: ['imported', 'legacyId', 'oldManagerNotes', 'additionalNotes', 'approvers'] },
       include: [
         {
           model: Objective,
@@ -729,6 +754,12 @@ async function getDownloadableActivityReports(where) {
           as: 'granteeNextSteps',
           required: false,
         },
+        {
+          model: ActivityReportApprover,
+          attributes: ['userId'],
+          as: 'approvers',
+          required: false,
+        },
       ],
       distinct: true,
       order: [['id', 'DESC']],
@@ -739,7 +770,6 @@ async function getDownloadableActivityReports(where) {
 export async function getAllDownloadableActivityReports(
   readRegions,
   filters,
-  canSeeBehindFeatureFlags = false,
 ) {
   const regions = readRegions || [];
 
@@ -749,13 +779,9 @@ export async function getAllDownloadableActivityReports(
     regionId: {
       [Op.in]: regions,
     },
-    status: REPORT_STATUSES.APPROVED,
+    calculatedStatus: REPORT_STATUSES.APPROVED,
     [Op.and]: scopes,
   };
-
-  if (!canSeeBehindFeatureFlags) {
-    return getDownloadableActivityReports({ ...where, imported: null });
-  }
 
   return getDownloadableActivityReports(where);
 }
@@ -765,19 +791,19 @@ export async function getAllDownloadableActivityReportAlerts(userId, filters) {
   const where = {
     [Op.and]: scopes,
     [Op.or]: [
-      {
+      { // User is approver, and report is submitted or needs_action
         [Op.or]: [
-          { status: REPORT_STATUSES.SUBMITTED },
-          { status: REPORT_STATUSES.NEEDS_ACTION },
+          { submissionStatus: REPORT_STATUSES.SUBMITTED },
+          { calculatedStatus: REPORT_STATUSES.NEEDS_ACTION },
         ],
-        approvingManagerId: userId,
+        '$approvers.userId$': userId,
       },
-      {
+      { // User is author or collaborator, and report is approved
         [Op.and]: [
           {
             [Op.and]: [
               {
-                status: { [Op.ne]: REPORT_STATUSES.APPROVED },
+                calculatedStatus: { [Op.ne]: REPORT_STATUSES.APPROVED },
               },
             ],
           },
@@ -801,16 +827,11 @@ export async function getAllDownloadableActivityReportAlerts(userId, filters) {
  */
 export async function getDownloadableActivityReportsByIds(readRegions, {
   report = [],
-}, canSeeBehindFeatureFlags = false) {
+}) {
   const regions = readRegions || [];
   // Create a Set to ensure unique ordered values
   const reportSet = Array.isArray(report) ? new Set(report) : new Set([report]);
   const reportIds = [...reportSet].filter((i) => /\d+/.test(i));
   const where = { regionId: regions, id: { [Op.in]: reportIds } };
-
-  if (!canSeeBehindFeatureFlags) {
-    return getDownloadableActivityReports({ ...where, imported: null });
-  }
-
   return getDownloadableActivityReports(where);
 }

@@ -11,11 +11,10 @@ export default async function reasonList(scopes) {
     where: {
       [Op.and]: [
         scopes,
-        { status: REPORT_STATUSES.APPROVED },
+        { calculatedStatus: REPORT_STATUSES.APPROVED },
       ],
     },
     raw: true,
-    includeIgnoreAttributes: false,
   });
 
   // Get counts for each reason.
@@ -32,8 +31,21 @@ export default async function reasonList(scopes) {
   });
 
   // Sort By Reason Count largest to smallest.
-  reasons.sort((r1, r2) => r2.count - r1.count);
+  reasons.sort((r1, r2) => {
+    if (r2.count - r1.count === 0) {
+      // Break tie on Reason name.
+      const reasonName1 = r1.name.toUpperCase().replace(' ', ''); // ignore upper and lowercase
+      const reasonName2 = r2.name.toUpperCase().replace(' ', ''); // ignore upper and lowercase
+      if (reasonName1 < reasonName2) {
+        return -1;
+      }
+      if (reasonName1 > reasonName2) {
+        return 1;
+      }
+    }
+    return r2.count - r1.count;
+  });
 
   // Return only top 14.
-  return reasons.slice(0, 13);
+  return reasons;
 }

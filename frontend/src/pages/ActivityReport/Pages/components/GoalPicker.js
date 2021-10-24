@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { uniqBy, cloneDeep } from 'lodash';
 import PropTypes from 'prop-types';
-import {
-  Button, Label, TextInput,
-} from '@trussworks/react-uswds';
+import { Label } from '@trussworks/react-uswds';
 import { useFormContext, useWatch } from 'react-hook-form/dist/index.ie11';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -13,6 +11,7 @@ import MultiSelect from '../../../../components/MultiSelect';
 import Option from './GoalOption';
 import Input from './GoalInput';
 import { validateGoals } from './goalValidator';
+import './GoalPicker.css';
 
 const components = {
   Input,
@@ -29,7 +28,6 @@ const GoalPicker = ({
   const {
     control, setValue,
   } = useFormContext();
-  const [newGoal, updateNewGoal] = useState('');
   const [inMemoryGoals, updateInMemoryGoals] = useState([]);
   const selectedGoals = useWatch({ name: 'goals' });
   // availableGoals: goals passed into GoalPicker. getGoals returns GrantGoals
@@ -53,20 +51,6 @@ const GoalPicker = ({
       const updatedGoals = cloneDeep(selectedGoals);
       updatedGoals[index] = goal;
       setValue('goals', updatedGoals);
-    }
-  };
-
-  const onSaveGoal = () => {
-    if (newGoal !== '') {
-      const goal = {
-        id: uuidv4(),
-        new: true,
-        name: newGoal,
-        objectives: [createObjective()],
-      };
-      setValue('goals', [...selectedGoals, goal]);
-      updateInMemoryGoals((oldGoals) => [...oldGoals, goal]);
-      updateNewGoal('');
     }
   };
 
@@ -100,8 +84,15 @@ const GoalPicker = ({
     setValue('goals', newlySelectedGoals);
   };
 
-  const onNewGoalChange = (e) => {
-    updateNewGoal(e.target.value);
+  const onNewGoalChange = (newGoal) => {
+    const goal = {
+      id: uuidv4(),
+      new: true,
+      name: newGoal,
+      objectives: [createObjective()],
+    };
+    setValue('goals', [...selectedGoals, goal]);
+    updateInMemoryGoals((oldGoals) => [...oldGoals, goal]);
   };
 
   const uniqueAvailableGoals = uniqBy(allAvailableGoals, 'id');
@@ -114,7 +105,7 @@ const GoalPicker = ({
         fieldSetWrapper
       >
         <Label>
-          Select goal(s).
+          Select from existing goal(s), type to create a new goal, or press CTRL+V to paste.
           <MultiSelect
             name="goals"
             control={control}
@@ -134,15 +125,10 @@ const GoalPicker = ({
               controlShouldRenderValue: false,
               hideSelectedOptions: false,
             }}
+            onCreateOption={onNewGoalChange}
+            canCreate
           />
         </Label>
-        <Label>
-          Create a new goal
-          <TextInput value={newGoal} onChange={onNewGoalChange} />
-        </Label>
-        <Button type="button" onClick={onSaveGoal}>
-          Save Goal
-        </Button>
         <div>
           {selectedGoals.map((goal, index) => (
             <Goal

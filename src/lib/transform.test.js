@@ -12,6 +12,7 @@ describe('activityReportToCsvRecord', () => {
     name: 'Arthur',
     hsesUserId: '2099',
     hsesUsername: 'arthur.author',
+    role: ['Grantee Specialist'],
   };
 
   const mockCollaborators = [
@@ -20,12 +21,14 @@ describe('activityReportToCsvRecord', () => {
       name: 'Collaborator 1',
       hsesUserId: '2100',
       hsesUsername: 'collaborator.one',
+      role: ['Grantee Specialist', 'Health Specialist'],
     },
     {
       id: 2101,
       name: 'Collaborator 2',
       hsesUserId: '2101',
       hsesUsername: 'collaborator.two',
+      role: [],
     },
   ];
 
@@ -99,7 +102,7 @@ describe('activityReportToCsvRecord', () => {
     id: 209914,
     regionId: 14,
     reason: 'Test CSV Export',
-    status: 'approved',
+    submissionStatus: 'approved',
     numberOfParticipants: 12,
     deliveryMethod: 'virtual',
     duration: 4.5,
@@ -131,9 +134,9 @@ describe('activityReportToCsvRecord', () => {
     });
     const output = await activityReportToCsvRecord(report);
     const { author, lastUpdatedBy, collaborators } = output;
-    expect(author).toEqual('Arthur');
+    expect(author).toEqual('Arthur, GS');
     expect(lastUpdatedBy).toEqual('Arthur');
-    expect(collaborators).toEqual('Collaborator 1\nCollaborator 2');
+    expect(collaborators).toEqual('Collaborator 1, GS, HS\nCollaborator 2');
   });
 
   it('transforms goals and objectives into many values', async () => {
