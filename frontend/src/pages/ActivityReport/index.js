@@ -19,7 +19,7 @@ import Navigator from '../../components/Navigator';
 
 import './index.css';
 import { NOT_STARTED } from '../../components/Navigator/constants';
-import { REPORT_STATUSES, DECIMAL_BASE } from '../../Constants';
+import { REPORT_STATUSES, DECIMAL_BASE, FLASH_MESSAGE_TYPES } from '../../Constants';
 import { getRegionWithReadWrite } from '../../permissions';
 import {
   submitReport,
@@ -32,6 +32,7 @@ import {
   reviewReport,
   resetToDraft,
 } from '../../fetchers/activityReports';
+import FlashMessage from '../../components/FlashMessage';
 
 const defaultValues = {
   ECLKCResourcesUsed: [{ value: '' }],
@@ -111,6 +112,8 @@ function ActivityReport({
   const [lastSaveTime, updateLastSaveTime] = useState();
   const [showValidationErrors, updateShowValidationErrors] = useState(false);
   const [errorMessage, updateErrorMessage] = useState();
+  const [flashMessage, updateFlashMessage] = useState();
+  const [flashMessageType, updateFlashMessageType] = useState();
   const reportId = useRef();
 
   const showLastUpdatedTime = (location.state && location.state.showLastUpdatedTime) || false;
@@ -248,6 +251,17 @@ function ActivityReport({
     history.push(`/activity-reports/${reportId.current}/${page.path}`, state);
   };
 
+  const showFlashMessage = (message, type) => {
+    updateFlashMessage(message);
+    updateFlashMessageType(type);
+
+    // eslint-disable-next-line no-unused-vars
+    const flashMessageTimer = setTimeout(() => {
+      updateFlashMessage(null);
+    }, 4300);
+    return () => clearTimeout();
+  };
+
   const onSave = async (data) => {
     const approverIds = data.approvers.map((a) => a.User.id);
     if (reportId.current === 'new') {
@@ -262,6 +276,8 @@ function ActivityReport({
       const updatedFields = findWhatsChanged(data, formData);
       await saveReport(reportId.current, { ...updatedFields, approverUserIds: approverIds }, {});
     }
+
+    showFlashMessage('Report has been saved successfully!', FLASH_MESSAGE_TYPES.SUCCESS);
   };
 
   const onFormSubmit = async (data) => {
@@ -307,7 +323,9 @@ function ActivityReport({
 
   return (
     <div className="smart-hub-activity-report">
+      { flashMessage && <FlashMessage message={flashMessage} type={flashMessageType} /> }
       <Helmet titleTemplate="%s - Activity Report - TTA Hub" defaultTitle="TTA Hub - Activity Report" />
+      { flashMessage && <FlashMessage message={flashMessage} type={flashMessageType} /> }
       <Grid row className="flex-justify">
         <Grid col="auto">
           <div className="margin-top-3 margin-bottom-5">

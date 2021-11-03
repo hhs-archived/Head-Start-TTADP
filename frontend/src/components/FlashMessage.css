@@ -1,0 +1,44 @@
+.flash-message {
+  position: fixed;
+  top: 95px;
+  right: 10px;
+  padding: 0px;
+  display: flex;
+  align-items: center;
+  z-index: 1111;
+  opacity: 0.6;
+  border-radius: 10px 0px 0px 10px;
+}
+
+.flash-message-tab {
+  width: 100px;
+  background: #00a91c;
+  border-radius: 10px 0px 0px 10px;
+}
+
+.flash-message p {
+  margin: 0;
+  padding: 20px;
+}
+
+.flash-message-type-success {
+  border-color: #00a91c;
+  background: #b1dfb1;
+}
+
+.flash-message-type-error {
+  background: lightcoral;
+}
+
+.close {
+  color: white;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.center-llama-head {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}

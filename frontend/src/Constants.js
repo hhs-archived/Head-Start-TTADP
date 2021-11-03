@@ -9,6 +9,11 @@ export const SCOPE_IDS = {
   UNLOCK_APPROVED_REPORTS: 6,
 };
 
+export const FLASH_MESSAGE_TYPES = {
+  SUCCESS: 'success',
+  ERROR: 'error',
+};
+
 export const REGIONAL_SCOPES = {
   [SCOPE_IDS.READ_WRITE_ACTIVITY_REPORTS]: {
     name: 'READ_WRITE_ACTIVITY_REPORTS',
