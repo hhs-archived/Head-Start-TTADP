@@ -8,7 +8,7 @@ const getStatusIcon = (status) => {
     return <FontAwesomeIcon className="margin-right-105" size="1x" color="#eb6689" icon={faExclamationCircle} />;
   }
   if (status && status === 'approved') {
-    return <FontAwesomeIcon className="margin-right-105" size="1x" color="#4fbe82" icon={faCheck} />;
+    return <FontAwesomeIcon className="margin-right-105" size="60px" color="#4fbe82" icon={faCheck} />;
   }
 
   return <FontAwesomeIcon className="margin-right-105" size="1x" color="#f2cf95" icon={faMinus} />;

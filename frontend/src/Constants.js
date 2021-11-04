@@ -15,13 +15,6 @@ export const FLASH_MESSAGE_TYPES = {
   CELEBRATE: 'celebrate',
 };
 
-export const FLASH_MESSAGE_IMAGE_TYPES = {
-  CHECK: 'check',
-  XMARK: 'xmark',
-  LLAMA: 'llama',
-  LLAMA_HEAD: 'llama_head',
-};
-
 export const REGIONAL_SCOPES = {
   [SCOPE_IDS.READ_WRITE_ACTIVITY_REPORTS]: {
     name: 'READ_WRITE_ACTIVITY_REPORTS',

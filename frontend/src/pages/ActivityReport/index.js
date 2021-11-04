@@ -277,7 +277,7 @@ function ActivityReport({
       await saveReport(reportId.current, { ...updatedFields, approverUserIds: approverIds }, {});
     }
 
-    showFlashMessage('Report has been saved successfully!', FLASH_MESSAGE_TYPES.CELEBRATE);
+    showFlashMessage('Report has been saved successfully!', FLASH_MESSAGE_TYPES.ERROR);
   };
 
   const onFormSubmit = async (data) => {
