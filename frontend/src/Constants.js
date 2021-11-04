@@ -12,6 +12,14 @@ export const SCOPE_IDS = {
 export const FLASH_MESSAGE_TYPES = {
   SUCCESS: 'success',
   ERROR: 'error',
+  CELEBRATE: 'celebrate',
+};
+
+export const FLASH_MESSAGE_IMAGE_TYPES = {
+  CHECK: 'check',
+  XMARK: 'xmark',
+  LLAMA: 'llama',
+  LLAMA_HEAD: 'llama_head',
 };
 
 export const REGIONAL_SCOPES = {

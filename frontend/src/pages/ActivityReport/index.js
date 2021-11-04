@@ -258,7 +258,7 @@ function ActivityReport({
     // eslint-disable-next-line no-unused-vars
     const flashMessageTimer = setTimeout(() => {
       updateFlashMessage(null);
-    }, 4300);
+    }, 6000);
     return () => clearTimeout();
   };
 
@@ -277,7 +277,7 @@ function ActivityReport({
       await saveReport(reportId.current, { ...updatedFields, approverUserIds: approverIds }, {});
     }
 
-    showFlashMessage('Report has been saved successfully!', FLASH_MESSAGE_TYPES.SUCCESS);
+    showFlashMessage('Report has been saved successfully!', FLASH_MESSAGE_TYPES.CELEBRATE);
   };
 
   const onFormSubmit = async (data) => {
