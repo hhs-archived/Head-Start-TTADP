@@ -1,12 +1,27 @@
 /* eslint-disable react/no-array-index-key, react/jsx-props-no-spreading */
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { NavLink as Link, withRouter } from 'react-router-dom';
+import { NavLink as Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartBar, faBorderAll, faUserFriends } from '@fortawesome/free-solid-svg-icons';
 
 import './SiteNav.css';
 import FeatureFlag from './FeatureFlag';
+
+export const withRouter = (Component) => {
+  const Wrapper = (props) => {
+    const history = useNavigate();
+
+    return (
+      <Component
+        history={history}
+        {...props}
+      />
+    );
+  };
+
+  return Wrapper;
+};
 
 const navLinkClasses = [
   'display-block',

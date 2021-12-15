@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import ReactRouterPropTypes from 'react-router-prop-types';
 
-import { Switch, Route } from 'react-router';
+import { Routes, Route } from 'react-router';
 import { Helmet } from 'react-helmet';
 import { DECIMAL_BASE } from '../../Constants';
 import { getGrantee } from '../../fetchers/grantee';
@@ -78,7 +78,7 @@ export default function GranteeRecord({ match, location }) {
         ) : (
           <>
             <h1 className="ttahub-grantee-record--heading margin-top-0 margin-bottom-1 margin-left-2">{granteeName}</h1>
-            <Switch>
+            <Routes>
               <Route
                 path="/grantee/:granteeId/tta-history"
                 render={() => (
@@ -99,7 +99,7 @@ export default function GranteeRecord({ match, location }) {
                   />
                 )}
               />
-            </Switch>
+            </Routes>
           </>
         )
       }

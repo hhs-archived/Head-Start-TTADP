@@ -2,13 +2,13 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Tag, Table } from '@trussworks/react-uswds';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import Modal from '../../components/Modal';
 import Container from '../../components/Container';
 import ContextMenu from '../../components/ContextMenu';
 import NewReport from './NewReport';
-import 'uswds/dist/css/uswds.css';
+import '../../../node_modules/uswds/dist/css/uswds.css';
 import '@trussworks/react-uswds/lib/index.css';
 import './index.css';
 import { ALERTS_PER_PAGE } from '../../Constants';
@@ -18,7 +18,7 @@ import Tooltip from '../../components/Tooltip';
 import TableHeader from '../../components/TableHeader';
 
 export function ReportsRow({ reports, removeAlert, message }) {
-  const history = useHistory();
+  const history = useNavigate();
   const [idToDelete, updateIdToDelete] = useState(0);
   const modalRef = useRef();
 

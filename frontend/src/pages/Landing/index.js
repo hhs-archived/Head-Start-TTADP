@@ -9,13 +9,13 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTimesCircle } from '@fortawesome/free-solid-svg-icons';
 import { Helmet } from 'react-helmet';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import AriaLiveContext from '../../AriaLiveContext';
 import { getReportAlerts } from '../../fetchers/activityReports';
 import { getAllAlertsDownloadURL } from '../../fetchers/helpers';
 import NewReport from './NewReport';
-import 'uswds/dist/css/uswds.css';
+import '../../../node_modules/uswds/dist/css/uswds.css';
 import '@trussworks/react-uswds/lib/index.css';
 import './index.css';
 import MyAlerts from './MyAlerts';
@@ -49,7 +49,7 @@ function regionFilter(regionId) {
 
 function Landing({ user }) {
   const regions = allRegionsUserHasPermissionTo(user);
-  const history = useHistory();
+  const history = useNavigate();
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [reportAlerts, updateReportAlerts] = useState([]);
   const [error, updateError] = useState();

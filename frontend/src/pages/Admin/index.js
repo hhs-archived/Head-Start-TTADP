@@ -1,5 +1,5 @@
 import React from 'react';
-import { Switch, Route } from 'react-router';
+import { Routes, Route } from 'react-router';
 import { NavLink } from 'react-router-dom';
 
 import User from './users';
@@ -25,7 +25,7 @@ function Admin() {
           Feature flags
         </NavLink>
       </div>
-      <Switch>
+      <Routes>
         <Route
           path="/admin/cdi/:grantId?"
           render={({ match }) => <Cdi match={match} />}
@@ -42,7 +42,7 @@ function Admin() {
           path="/admin/flags/"
           render={({ match }) => <Flags match={match} />}
         />
-      </Switch>
+      </Routes>
     </>
   );
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import ReactRouterPropTypes from 'react-router-prop-types';
 import { Grid, ModalToggleButton } from '@trussworks/react-uswds';
-import { Redirect } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { Helmet } from 'react-helmet';
 import Container from '../../components/Container';
@@ -356,7 +356,7 @@ export default function ApprovedActivityReport({ match, user }) {
 
   return (
     <>
-      {justUnlocked && <Redirect to={{ pathname: '/activity-reports', state: { message } }} />}
+      {justUnlocked && <Navigate to={{ pathname: '/activity-reports', state: { message } }} />}
       <Helmet>
         <title>
           {displayId}

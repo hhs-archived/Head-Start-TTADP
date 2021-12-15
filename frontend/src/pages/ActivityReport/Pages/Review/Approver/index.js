@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Redirect } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { Alert } from '@trussworks/react-uswds';
 
@@ -90,11 +90,11 @@ const Approver = ({
         {/* `reviewed` will only be true after user submits the form. */}
         {reviewed
           && review
-          && <Redirect to={{ pathname: '/activity-reports', state: { message: { ...message, status: 'reviewed' } } }} />}
+          && <Navigate to={{ pathname: '/activity-reports', state: { message: { ...message, status: 'reviewed' } } }} />}
 
         {reviewed
           && approved
-          && <Redirect to={{ pathname: '/activity-reports', state: { message: { ...message, status: 'approved' } } }} />}
+          && <Navigate to={{ pathname: '/activity-reports', state: { message: { ...message, status: 'approved' } } }} />}
 
         {review
           && (

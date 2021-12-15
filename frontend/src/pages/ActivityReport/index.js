@@ -9,7 +9,7 @@ import {
 } from 'lodash';
 import { Helmet } from 'react-helmet';
 import ReactRouterPropTypes from 'react-router-prop-types';
-import { useHistory, Redirect } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Alert, Grid } from '@trussworks/react-uswds';
 import useDeepCompareEffect from 'use-deep-compare-effect';
 import moment from 'moment';
@@ -98,7 +98,7 @@ function ActivityReport({
   match, user, location, region,
 }) {
   const { params: { currentPage, activityReportId } } = match;
-  const history = useHistory();
+  const history = useNavigate();
   const [error, updateError] = useState();
   const [loading, updateLoading] = useState(true);
   const [formData, updateFormData] = useState();
@@ -211,7 +211,7 @@ function ActivityReport({
   // If no region was able to be found, we will re-reoute user to the main page
   // FIXME: when re-routing user show a message explaining what happened
   if (formData && parseInt(formData.regionId, DECIMAL_BASE) === -1) {
-    return <Redirect to="/" />;
+    return <Navigate to="/" />;
   }
 
   if (error) {
@@ -224,13 +224,13 @@ function ActivityReport({
 
   if (!editable && currentPage !== 'review') {
     return (
-      <Redirect push to={`/activity-reports/${activityReportId}/review`} />
+      <Navigate push to={`/activity-reports/${activityReportId}/review`} />
     );
   }
 
   if (!currentPage) {
     return (
-      <Redirect push to={`/activity-reports/${activityReportId}/activity-summary`} />
+      <Navigate push to={`/activity-reports/${activityReportId}/activity-summary`} />
     );
   }
 

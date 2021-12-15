@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import 'uswds/dist/css/uswds.css';
+import '../node_modules/uswds/dist/css/uswds.css';
 import '@trussworks/react-uswds/lib/index.css';
 
-import { BrowserRouter, Route, Switch } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 
 import { fetchUser, fetchLogout } from './fetchers/Auth';
@@ -85,7 +85,7 @@ function App() {
 
   const renderAuthenticatedRoutes = () => (
     <>
-      <Switch>
+      <Routes>
         <Route
           path="/activity-reports/legacy/:legacyId([0-9RA\-]*)"
           render={({ match }) => (
@@ -163,7 +163,7 @@ function App() {
         <Route
           render={() => <AppWrapper authenticated logout={logout}><NotFound /></AppWrapper>}
         />
-      </Switch>
+      </Routes>
     </>
   );
 
