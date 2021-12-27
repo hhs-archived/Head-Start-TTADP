@@ -4,9 +4,9 @@ import httpContext from 'express-http-context';
 
 const dmlType = ['INSERT', 'UPDATE', 'DELETE'];
 
-const exception = () => {
-  throw new Error('Audit log only allows reading and inserting data, all modification and removal is not allowed.');
-};
+// const exception = () => {
+//   throw new Error('Audit log only allows reading and inserting data, all modification and removal is not allowed.');
+// };
 
 const tryJsonParse = (fieldName) => {
   const data = this.getDataValue(fieldName);
@@ -41,6 +41,7 @@ const saveAuditLog = async (action, model, options, auditModel) => {
 
   switch (action) {
     case 'INSERT': {
+      oldData = null;
       newData = model.dataValues;
       break;
     }
@@ -55,7 +56,12 @@ const saveAuditLog = async (action, model, options, auditModel) => {
       break;
     }
     case 'DELETE': {
-      newData = model._previousDataValues;
+      const changed = model.changed();
+      if (changed instanceof Array) {
+        changed.forEach((change) => {
+          oldData[change] = model.previous(change);
+        });
+      }
       break;
     }
     default: {

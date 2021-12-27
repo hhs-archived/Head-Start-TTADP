@@ -29,7 +29,6 @@ router.use((req, res, next) => {
   const { userId } = req.session;
   httpContext.set('loggedUser', userId);
   auditLogger.info(`Audit Data loggedUser: ${userId}`);
-  console.log(httpContext);
   next();
 });
 

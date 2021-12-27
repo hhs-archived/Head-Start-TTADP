@@ -35,7 +35,11 @@ Object.keys(db).forEach((modelName) => {
 // const auditDir = `${__dirname}/audit/`;
 // fs
 //   .readdirSync(auditDir)
-//   .filter((file) => (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js'))
+//   .filter((file) => (
+//      file.indexOf('.') !== 0)
+//      && (file !== basename)
+//      && (file.slice(-3) === '.js')
+//      )
 //   .forEach((file) => {
 //     const model = sequelize.import(path.join(auditDir, file));
 //     db[model.name] = model;

@@ -153,8 +153,11 @@ module.exports = {
         //       IS_LOGGABLE boolean;
         //   BEGIN
         //       CREATED_BY := COALESCE(current_setting('var.loggedUser', true)::BIGINT, -1);
-        //       TRANSACTION_ID := COALESCE(current_setting('var.transactionId', true)::uuid, lpad(txid_current()::text,32,'0')::uuid);
-        //       DESCRIPTOR_ID := "ZZAuditFunctionDescriptorToID"(NULLIF(current_setting('var.auditDescriptor', true)::TEXT, ''));
+        //       TRANSACTION_ID := COALESCE(
+        //        current_setting('var.transactionId', true)::uuid,
+        //        lpad(txid_current()::text,32,'0')::uuid);
+        //       DESCRIPTOR_ID := "ZZAuditFunctionDescriptorToID"(
+        //        NULLIF(current_setting('var.auditDescriptor', true)::TEXT, ''));
 
         //       IF (TG_OP = 'INSERT') THEN
         //         INSERT INTO "ZZAuditLog${table}" (
@@ -265,31 +268,31 @@ module.exports = {
         // );
       });
 
-      const missingTables = await queryInterface.sequelize.query(
-        `SELECT T.table_name AS "Table", A.table_name AS "Audit"
-        FROM (SELECT table_name
-          FROM information_schema.tables
-         WHERE table_schema='public'
-           AND table_type='BASE TABLE'
-           AND table_catalog='ttasmarthub'
-           AND table_name != 'SequelizeMeta'
-           AND table_name NOT LIKE 'ZZAuditLog%') AS T
-        LEFT JOIN (SELECT table_name
-          FROM information_schema.tables
-         WHERE table_schema='public'
-           AND table_type='BASE TABLE'
-           AND table_catalog='ttasmarthub'
-           AND table_name != 'SequelizeMeta'
-           AND table_name LIKE 'ZZAuditLog%') AS A
-        ON T.table_name = right(A.table_name,Length(T.table_name))
-        AND Length(T.table_name) + Length('ZZAuditLog') = Length(A.table_name)
-        WHERE A.table_name IS NULL;`,
-        {
-          type: Sequelize.QueryTypes.SELECT,
-          transaction,
-        },
-      );
-      console.log(missingTables);
+      // const missingTables = await queryInterface.sequelize.query(
+      //   `SELECT T.table_name AS "Table", A.table_name AS "Audit"
+      //   FROM (SELECT table_name
+      //     FROM information_schema.tables
+      //    WHERE table_schema='public'
+      //      AND table_type='BASE TABLE'
+      //      AND table_catalog='ttasmarthub'
+      //      AND table_name != 'SequelizeMeta'
+      //      AND table_name NOT LIKE 'ZZAuditLog%') AS T
+      //   LEFT JOIN (SELECT table_name
+      //     FROM information_schema.tables
+      //    WHERE table_schema='public'
+      //      AND table_type='BASE TABLE'
+      //      AND table_catalog='ttasmarthub'
+      //      AND table_name != 'SequelizeMeta'
+      //      AND table_name LIKE 'ZZAuditLog%') AS A
+      //   ON T.table_name = right(A.table_name,Length(T.table_name))
+      //   AND Length(T.table_name) + Length('ZZAuditLog') = Length(A.table_name)
+      //   WHERE A.table_name IS NULL;`,
+      //   {
+      //     type: Sequelize.QueryTypes.SELECT,
+      //     transaction,
+      //   },
+      // );
+      // console.log(missingTables);
     },
   ),
   down: async (queryInterface, Sequelize) => queryInterface.sequelize.transaction(
