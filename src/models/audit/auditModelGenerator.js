@@ -38,7 +38,7 @@ const saveAuditLog = async (action, model, options, auditModel) => {
       data.new[change] = model.getDataValue(change);
     });
   }
-  if (data.old.length === 0 && data.new.length === 0) {
+  if (data.old.length !== 0 || data.new.length !== 0) {
     if (typeof options.transaction === 'undefined') {
       throw new Error('All create/update/delete actions must be run in a transaction to '
       + 'prevent orphaned AuditLogs or connected models on save. '
