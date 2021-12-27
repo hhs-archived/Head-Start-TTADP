@@ -42,7 +42,7 @@ const saveAuditLog = async (action, model, options, auditModel) => {
     + 'prevent orphaned AuditLogs or connected models on save. '
     + `Please add a transaction to your current "${action}" request `
     + `Model: ${model.name}\n`
-    + `${data.toString()}`);
+    + `${JSON.stringify(data)}`);
   }
 
   const contextLoggedUser = httpContext.get('loggedUser');
