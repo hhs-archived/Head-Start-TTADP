@@ -30,7 +30,7 @@ const tryJsonParse = (fieldName) => {
 const saveAuditLog = async (action, model, options, auditModel) => {
   // Verify we are being run in a transaction
   if (typeof options.transaction === 'undefined') {
-    const data = { old: null, new: null };
+    const data = { old: [], new: [] };
     const changed = model.changed();
     if (changed instanceof Array) {
       changed.forEach((change) => {
