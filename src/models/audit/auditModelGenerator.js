@@ -5,7 +5,10 @@ import httpContext from 'express-http-context';
 const dmlType = ['INSERT', 'UPDATE', 'DELETE'];
 
 // const exception = () => {
-//   throw new Error('Audit log only allows reading and inserting data, all modification and removal is not allowed.');
+//   throw new Error(
+//     'Audit log only allows reading and inserting data,'
+//     + ' all modification and removal is not allowed.'
+//   );
 // };
 
 const tryJsonParse = (fieldName) => {
