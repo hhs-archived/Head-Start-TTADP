@@ -30,10 +30,19 @@ const tryJsonParse = (fieldName) => {
 const saveAuditLog = async (action, model, options, auditModel) => {
   // Verify we are being run in a transaction
   if (typeof options.transaction === 'undefined') {
+    let data;
+    const changed = model.changed();
+    if (changed instanceof Array) {
+      changed.forEach((change) => {
+        data.old[change] = model.previous(change);
+        data.new[change] = model.getDataValue(change);
+      });
+    }
     throw new Error('All create/update/delete actions must be run in a transaction to '
     + 'prevent orphaned AuditLogs or connected models on save. '
     + `Please add a transaction to your current "${action}" request `
-    + `Model: ${model.name}`);
+    + `Model: ${model.name}\n`
+    + `${data.toString()}`);
   }
 
   const contextLoggedUser = httpContext.get('loggedUser');
