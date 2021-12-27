@@ -37,54 +37,55 @@ const saveAuditLog = async (action, model, options, auditModel) => {
       data.new[change] = model.getDataValue(change);
     });
   }
+  if (data.old.length === 0 && data.new.length === 0) {
+    if (typeof options.transaction === 'undefined') {
+      throw new Error('All create/update/delete actions must be run in a transaction to '
+      + 'prevent orphaned AuditLogs or connected models on save. '
+      + `Please add a transaction to your current "${action}" request `
+      + `Model: ${model.name}\n`
+      + `${JSON.stringify(data)}`);
+    }
 
-  if (typeof options.transaction === 'undefined' && (data.old.length !== 0 || data.new.length !== 0)) {
-    throw new Error('All create/update/delete actions must be run in a transaction to '
-    + 'prevent orphaned AuditLogs or connected models on save. '
-    + `Please add a transaction to your current "${action}" request `
-    + `Model: ${model.name}\n`
-    + `${JSON.stringify(data)}`);
+    const contextLoggedUser = httpContext.get('loggedUser');
+    const loggedUser = (typeof contextLoggedUser !== 'undefined') ? contextLoggedUser : null;
+
+    let oldData = null;
+    let newData = null;
+
+    switch (action) {
+      case 'INSERT': {
+        oldData = null;
+        newData = model.dataValues;
+        break;
+      }
+      case 'UPDATE': {
+        oldData = data.old;
+        newData = data.new;
+        break;
+      }
+      case 'DELETE': {
+        newData = data.new;
+        break;
+      }
+      default: {
+        throw new Error(`action must be either INSERT, UPDATE, or DELETE. '${action}'`
+      + `Model: ${model.name}\n`
+      + `${JSON.stringify(data)}`);
+      }
+    }
+
+    const auditLog = auditModel.build({
+      data_id: model.dataValues.id,
+      dml_type: action,
+      old_row_data: oldData,
+      new_row_data: newData,
+      dml_timestamp: new Date(),
+      dml_by: loggedUser,
+      dml_txid: options.transaction ? options.transaction.id : null,
+      descriptor_id: null,
+    });
+    return auditLog.save({ transaction: options.transaction });
   }
-
-  const contextLoggedUser = httpContext.get('loggedUser');
-  const loggedUser = (typeof contextLoggedUser !== 'undefined') ? contextLoggedUser : null;
-
-  let oldData = null;
-  let newData = null;
-
-  switch (action) {
-    case 'INSERT': {
-      oldData = null;
-      newData = model.dataValues;
-      break;
-    }
-    case 'UPDATE': {
-      oldData = data.old;
-      newData = data.new;
-      break;
-    }
-    case 'DELETE': {
-      newData = data.new;
-      break;
-    }
-    default: {
-      throw new Error(`action must be either INSERT, UPDATE, or DELETE. '${action}'`
-    + `Model: ${model.name}\n`
-    + `${JSON.stringify(data)}`);
-    }
-  }
-
-  const auditLog = auditModel.build({
-    data_id: model.dataValues.id,
-    dml_type: action,
-    old_row_data: oldData,
-    new_row_data: newData,
-    dml_timestamp: new Date(),
-    dml_by: loggedUser,
-    dml_txid: options.transaction ? options.transaction.id : null,
-    descriptor_id: null,
-  });
-  return auditLog.save({ transaction: options.transaction });
 };
 
 const generateAuditModel = (sequelize, model) => {
