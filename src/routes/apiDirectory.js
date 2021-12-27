@@ -1,5 +1,6 @@
 import express from 'express';
 import unless from 'express-unless';
+import httpContext from 'express-http-context';
 import join from 'url-join';
 
 import authMiddleware, { login } from '../middleware/authMiddleware';
@@ -20,8 +21,17 @@ authMiddleware.unless = unless;
 
 const router = express.Router();
 
+router.use(httpContext.middleware);
 router.use(cookieSession);
 router.use(authMiddleware.unless({ path: [join('/api', loginPath)] }));
+
+router.use((req, res, next) => {
+  const { userId } = req.session;
+  httpContext.set('loggedUser', userId);
+  auditLogger.info(`Audit Data loggedUser: ${userId}`);
+  console.log(httpContext);
+  next();
+});
 
 router.use('/admin', adminRouter);
 router.use('/activity-reports', activityReportsRouter);
