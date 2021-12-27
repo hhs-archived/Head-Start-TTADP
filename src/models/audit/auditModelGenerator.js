@@ -29,15 +29,16 @@ const tryJsonParse = (fieldName) => {
 
 const saveAuditLog = async (action, model, options, auditModel) => {
   // Verify we are being run in a transaction
-  if (typeof options.transaction === 'undefined') {
-    const data = { old: [], new: [] };
-    const changed = model.changed();
-    if (changed instanceof Array) {
-      changed.forEach((change) => {
-        data.old[change] = model.previous(change);
-        data.new[change] = model.getDataValue(change);
-      });
-    }
+  const data = { old: [], new: [] };
+  const changed = model.changed();
+  if (changed instanceof Array) {
+    changed.forEach((change) => {
+      data.old[change] = model.previous(change);
+      data.new[change] = model.getDataValue(change);
+    });
+  }
+
+  if (typeof options.transaction === 'undefined' && data.old.length === 0 && data.new.length === 0) {
     throw new Error('All create/update/delete actions must be run in a transaction to '
     + 'prevent orphaned AuditLogs or connected models on save. '
     + `Please add a transaction to your current "${action}" request `
@@ -58,26 +59,18 @@ const saveAuditLog = async (action, model, options, auditModel) => {
       break;
     }
     case 'UPDATE': {
-      const changed = model.changed();
-      if (changed instanceof Array) {
-        changed.forEach((change) => {
-          oldData[change] = model.previous(change);
-          newData[change] = model.getDataValue(change);
-        });
-      }
+      oldData = data.old;
+      newData = data.new;
       break;
     }
     case 'DELETE': {
-      const changed = model.changed();
-      if (changed instanceof Array) {
-        changed.forEach((change) => {
-          oldData[change] = model.previous(change);
-        });
-      }
+      newData = data.new;
       break;
     }
     default: {
-      throw new Error(`action must be either INSERT, UPDATE, or DELETE. '${action}'`);
+      throw new Error(`action must be either INSERT, UPDATE, or DELETE. '${action}'`
+    + `Model: ${model.name}\n`
+    + `${JSON.stringify(data)}`);
     }
   }
 
