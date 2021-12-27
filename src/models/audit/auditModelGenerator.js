@@ -29,6 +29,7 @@ const tryJsonParse = (fieldName) => {
 
 const saveAuditLog = async (action, model, options, auditModel) => {
   // Verify we are being run in a transaction
+  let result = null;
   const data = { old: [], new: [] };
   const changed = model.changed();
   if (changed instanceof Array) {
@@ -84,8 +85,9 @@ const saveAuditLog = async (action, model, options, auditModel) => {
       dml_txid: options.transaction ? options.transaction.id : null,
       descriptor_id: null,
     });
-    return auditLog.save({ transaction: options.transaction });
+    result = auditLog.save({ transaction: options.transaction });
   }
+  return result;
 };
 
 const generateAuditModel = (sequelize, model) => {
