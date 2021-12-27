@@ -93,8 +93,8 @@ const saveAuditLog = async (action, model, options, auditModel) => {
 const generateAuditModel = (sequelize, model) => {
   const auditModelName = `ZZAuditLog${model.name}`;
   const auditModel = class extends Model {
-    static associate(models) {
-      auditModel.belongsTo(models.User, { foreignKey: 'dml_by' });
+    static associate(/* models */) {
+      // auditModel.belongsTo(models.User, { foreignKey: 'dml_by' });
       auditModel.belongsTo(model, { foreignKey: 'data_id' });
     }
   };
