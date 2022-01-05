@@ -29,16 +29,96 @@ const tryJsonParse = (fieldName) => {
 
 const saveAuditLog = async (action, model, options, auditModel) => {
   // Verify we are being run in a transaction
-  let result = null;
-  const data = { old: [], new: [] };
-  const changed = model.changed();
-  if (changed instanceof Array) {
-    changed.forEach((change) => {
-      data.old[change] = model.previous(change);
-      data.new[change] = model.getDataValue(change);
-    });
+  function censor(censor) {
+    var i = 0;
+
+    return function(key, value) {
+      if(i !== 0 && typeof(censor) === 'object' && typeof(value) == 'object' && censor == value)
+        return '[Circular]';
+
+      if(i >= 29) // seems to be a harded maximum of 30 serialized objects?
+        return '[Unknown]';
+
+      ++i; // so we know we aren't using the original object anymore
+
+      return value;
+    }
   }
-  if (data.old.length !== 0 || data.new.length !== 0) {
+
+  console.log('\x1b[36m%s\x1b[0m', 'Save Audit Log');
+  console.log('\x1b[36m%s\x1b[0m', `action:${JSON.stringify(action)}`);
+  const dataSource = { old: null, new: null };
+  let result = null;
+  const changed = model.changed();
+  switch (action) {
+    case 'INSERT': {
+      dataSource.new = model.dataValues;
+      break;
+    }
+    case 'UPDATE': {
+      dataSource.old = model._previousDataValues;
+      dataSource.new = model.dataValues;
+      break;
+    }
+    case 'DELETE': {
+      dataSource.old = model._previousDataValues;
+      break;
+    }
+    default: {
+      console.log('\x1b[36m%s\x1b[0m', `action:${JSON.stringify(action)}`);
+      throw new Error(`action must be either INSERT, UPDATE, or DELETE. ${JSON.stringify(action)} Model: ${model.name} ${JSON.stringify(data)}`);
+    }
+  }
+  const data = { old: {}, new: {}, cnt: 0 };
+  //const changed = model.changed();
+  console.log('\x1b[36m%s\x1b[0m', `changed:${JSON.stringify(changed)}`);
+  let maybeChanged = 0;
+  let uniqueProps = [];
+  for( var prop in dataSource.old){
+    if(uniqueProps.indexOf(prop) == -1){
+      uniqueProps.push(prop);
+    }
+  }
+  for( var prop in dataSource.new){
+    if(uniqueProps.indexOf(prop) == -1){
+      uniqueProps.push(prop);
+    }
+  }
+  if (uniqueProps instanceof Array) {
+  //if (changed instanceof Array) {
+    uniqueProps.forEach((change) => {
+    //Object.keys(model.dataValues).forEach((change) => {
+      let oldValue = (dataSource.old) ? dataSource.old[change]: null;
+      let newValue = (dataSource.new) ? dataSource.new[change]: null;
+      let isEqual = ((typeof oldValue === typeof newValue) && (oldValue === newValue))
+        || (oldValue === 'undefined' && (typeof newValue === 'array' || newValue instanceof Array) && newValue.length === 0);
+      console.log('\x1b[36m%s\x1b[0m', `${change}: ${JSON.stringify(oldValue)} <=> ${JSON.stringify(newValue)} => ${isEqual}`);
+      if (!isEqual){
+        data.cnt++;
+        data.old[change] = oldValue;
+        data.new[change] = newValue;
+      }
+    });
+    for(var prop in data.old){
+      if( ((typeof data.old[prop] === 'array' || data.old[prop] instanceof Array) && data.old[prop].length === 0)
+        || data.old[prop] === null || data.old[prop] === undefined){
+        delete data.old[prop];
+        console.log('\x1b[36m%s\x1b[0m', `Delete old ${prop}`);
+      }
+    }
+    for(var prop in data.new){
+      if( ((typeof data.new[prop] === 'array' || data.new[prop] instanceof Array) && data.new[prop].length === 0)
+        || data.new[prop] === null || data.new[prop] === undefined){
+        delete data.new[prop];
+        console.log('\x1b[36m%s\x1b[0m', `Delete new ${prop}`);
+      }
+    }
+    // data.old = JSON.stringify(data.old);
+    // data.new = JSON.stringify(data.new);
+  }
+  console.log('\x1b[36m%s\x1b[0m', `old[${data.cnt}]:${JSON.stringify(data.old)}`);
+  console.log('\x1b[36m%s\x1b[0m', `new[${data.cnt}]:${JSON.stringify(data.new)}`);
+  if (data.cnt !== 0) {
     if (typeof options.transaction === 'undefined') {
       throw new Error('All create/update/delete actions must be run in a transaction to '
       + 'prevent orphaned AuditLogs or connected models on save. '
@@ -53,33 +133,32 @@ const saveAuditLog = async (action, model, options, auditModel) => {
     let oldData = null;
     let newData = null;
 
+    console.log('\x1b[36m%s\x1b[0m', `action:${JSON.stringify(action)}`);
     switch (action) {
       case 'INSERT': {
-        oldData = null;
-        newData = model.dataValues;
+        newData = data.new;
         break;
       }
       case 'UPDATE': {
-        oldData = data.old;
-        newData = data.new;
+        oldData = (data.old === {})?null:data.old;
+        newData = (data.new === {})?null:data.new;
         break;
       }
       case 'DELETE': {
-        newData = data.new;
+        oldData = data.old;
         break;
       }
       default: {
-        throw new Error(`action must be either INSERT, UPDATE, or DELETE. '${action}'`
-      + `Model: ${model.name}\n`
-      + `${JSON.stringify(data)}`);
+        console.log('\x1b[36m%s\x1b[0m', `action:${JSON.stringify(action)}`);
+        throw new Error(`!!!!! action must be either INSERT, UPDATE, or DELETE. ${JSON.stringify(action)} Model: ${model.name} ${JSON.stringify(data)}`);
       }
     }
-
+    console.log('\x1b[36m%s\x1b[0m', ``);
     const auditLog = auditModel.build({
-      data_id: model.dataValues.id,
+      data_id: model.id,
       dml_type: action,
-      old_row_data: oldData,
-      new_row_data: newData,
+      old_row_data: (oldData === {})?null:oldData,
+      new_row_data: (newData === {})?null:newData,
       dml_timestamp: new Date(),
       dml_by: loggedUser,
       dml_txid: options.transaction ? options.transaction.id : null,
@@ -111,12 +190,12 @@ const generateAuditModel = (sequelize, model) => {
     dml_type: {
       type: DataTypes.ENUM(...dmlType),
       allowNull: false,
-      validate: {
-        isIn: {
-          args: [...dmlType],
-          msg: 'Action must be create, update, or delete',
-        },
-      },
+      // validate: {
+      //   isIn: {
+      //     args: dmlType,
+      //     msg: 'Action must be create, update, or delete',
+      //   },
+      // },
     },
     old_row_data: {
       type: DataTypes.JSON,
