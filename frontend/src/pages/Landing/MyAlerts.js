@@ -40,6 +40,8 @@ export function ReportsRow({ reports, removeAlert, message }) {
       pendingApprovals,
       approvers,
       createdAt,
+      creatorRole,
+      creatorNameWithRole,
     } = report;
 
     const justSubmitted = message && message.reportId === id;
@@ -74,6 +76,18 @@ export function ReportsRow({ reports, removeAlert, message }) {
       },
     ];
 
+    const getCreatorName = () => {
+      let creatorNameToUse = null;
+      if (creatorRole) {
+        creatorNameToUse = creatorNameWithRole;
+      } else if (author) {
+        creatorNameToUse = author.fullName;
+      }
+      return creatorNameToUse;
+    };
+
+    const displayCreatorName = getCreatorName();
+
     return (
       <tr key={idKey}>
         <td>
@@ -88,11 +102,11 @@ export function ReportsRow({ reports, removeAlert, message }) {
         </td>
         <td>{startDate}</td>
         <td>
-          { author && (
+          { displayCreatorName && (
           <Tooltip
-            displayText={author.fullName}
-            tooltipText={author.fullName}
-            buttonLabel={`click to reveal: ${author.fullName} `}
+            displayText={displayCreatorName}
+            tooltipText={displayCreatorName}
+            buttonLabel={`click to reveal: ${displayCreatorName} `}
             screenReadDisplayText={false}
           />
           )}

@@ -11,6 +11,19 @@ import MyAlerts, { ReportsRow } from '../MyAlerts';
 import activityReports from '../mocks';
 import { ALERTS_PER_PAGE } from '../../../Constants';
 
+const renderMyAlertsRow = (history, report, message, includeOtherReports = true) => {
+  render(
+    <Router history={history}>
+      <ReportsRow
+        reports={includeOtherReports ? [...activityReports, report] : [report]}
+        removeAlert={jest.fn()}
+        message={message}
+      />
+    </Router>,
+  );
+  return history;
+};
+
 const renderMyAlerts = (report = false) => {
   const history = createMemoryHistory();
   const newBtn = true;
@@ -144,18 +157,29 @@ describe('My Alerts', () => {
     };
     const history = createMemoryHistory();
 
-    render(
-      <Router history={history}>
-        <ReportsRow
-          reports={[...activityReports, report]}
-          removeAlert={jest.fn()}
-          message={message}
-        />
-      </Router>,
-    );
+    renderMyAlertsRow(history, report, message);
 
     const needsAction = await screen.findAllByText(/needs action/i);
     expect(needsAction.length).toBe(2);
+  });
+
+  test('reports row shows the correct creator role', async () => {
+    const creatorReport = {
+      ...activityReports[0],
+      id: activityReports[0].id.toString(),
+      calculatedStatus: 'needs_action',
+      creatorRole: 'COR',
+      creatorNameWithRole: 'Jon Smith, COR',
+    };
+
+    const message = {
+      reportId: creatorReport.id,
+      status: 'unlocked',
+    };
+    const history = createMemoryHistory();
+    renderMyAlertsRow(history, creatorReport, message, false);
+    const creatorWithRole = await screen.findAllByText(/jon smith, cor/i);
+    expect(creatorWithRole.length).toBe(3);
   });
 
   test('displays the context menu buttons', async () => {

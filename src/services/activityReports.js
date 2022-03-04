@@ -474,6 +474,8 @@ export async function activityReportAlerts(userId, {
         'regionId',
         'userId',
         'createdAt',
+        'creatorRole',
+        'creatorNameWithRole',
         sequelize.literal(
           '(SELECT name as authorName FROM "Users" WHERE "Users"."id" = "ActivityReport"."userId")',
         ),
