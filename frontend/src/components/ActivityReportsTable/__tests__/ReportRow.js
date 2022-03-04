@@ -14,11 +14,15 @@ const history = createMemoryHistory();
 const [report] = generateXFakeReports(1);
 
 describe('ReportRow', () => {
-  const renderReportRow = (numberOfSelectedReports = 0, exportSelected = jest.fn()) => (
+  const renderReportRow = (
+    numberOfSelectedReports = 0,
+    exportSelected = jest.fn(),
+    passedReport = null,
+  ) => (
     render(
       <Router history={history}>
         <ReportRow
-          report={report}
+          report={passedReport || report}
           openMenuUp={false}
           handleReportSelect={jest.fn()}
           isChecked={false}
@@ -63,5 +67,17 @@ describe('ReportRow', () => {
     userEvent.tab();
     userEvent.keyboard('{enter}');
     expect(exportSelected).toHaveBeenCalled();
+  });
+
+  it('displays the correct creator role', async () => {
+    const creatorRoleReport = generateXFakeReports(1);
+    renderReportRow(1, jest.fn(),
+      {
+        ...creatorRoleReport,
+        creatorRole: 'COR',
+        creatorNameWithRole: 'Jon Smith, COR',
+      });
+    const creatorWithRole = await screen.findAllByText(/jon smith, cor/i);
+    expect(creatorWithRole.length).toBe(2);
   });
 });

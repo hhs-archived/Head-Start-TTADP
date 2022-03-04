@@ -31,12 +31,26 @@ function ReportRow({
     approvedAt,
     createdAt,
     legacyId,
+    creatorRole,
+    creatorNameWithRole,
   } = report;
 
   const [trClassname, setTrClassname] = useState('tta-smarthub--report-row');
 
   const history = useHistory();
-  const authorName = author ? author.fullName : '';
+
+  const getCreatorName = () => {
+    let creatorNameToUse = null;
+    if (creatorRole) {
+      creatorNameToUse = creatorNameWithRole;
+    } else if (author) {
+      creatorNameToUse = author.fullName;
+    }
+    return creatorNameToUse;
+  };
+
+  const displayCreatorName = getCreatorName();
+
   const recipients = activityRecipients && activityRecipients.map((ar) => (
     ar.grant ? ar.grant.recipient.name : ar.name
   ));
@@ -123,10 +137,10 @@ function ReportRow({
       </td>
       <td>{startDate}</td>
       <td>
-        {authorName ? (
+        {displayCreatorName ? (
           <Tooltip
-            displayText={authorName}
-            tooltipText={authorName}
+            displayText={displayCreatorName}
+            tooltipText={displayCreatorName}
             buttonLabel="click to reveal author name"
           />
         ) : '' }
@@ -175,6 +189,8 @@ export const reportPropTypes = PropTypes.shape({
   lastSaved: PropTypes.string,
   calculatedStatus: PropTypes.string,
   legacyId: PropTypes.string,
+  creatorRole: PropTypes.string,
+  creatorNameWithRole: PropTypes.string,
 });
 
 ReportRow.propTypes = {

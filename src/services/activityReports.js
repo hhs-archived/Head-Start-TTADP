@@ -348,6 +348,8 @@ export function activityReports(
         'legacyId',
         'createdAt',
         'approvedAt',
+        'creatorRole',
+        'creatorNameWithRole',
         sequelize.literal(
           '(SELECT name as authorName FROM "Users" WHERE "Users"."id" = "ActivityReport"."userId")',
         ),
