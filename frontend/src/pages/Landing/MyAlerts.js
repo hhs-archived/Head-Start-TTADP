@@ -1,36 +1,31 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-import {
-  Tag, Table, useModal, connectModal,
-} from '@trussworks/react-uswds';
+import { Tag, Table } from '@trussworks/react-uswds';
 import { Link, useHistory } from 'react-router-dom';
-
-import DeleteReportModal from '../../components/DeleteReportModal';
+import moment from 'moment';
+import Modal from '../../components/Modal';
 import Container from '../../components/Container';
 import ContextMenu from '../../components/ContextMenu';
 import NewReport from './NewReport';
-import 'uswds/dist/css/uswds.css';
-import '@trussworks/react-uswds/lib/index.css';
 import './index.css';
 import { ALERTS_PER_PAGE } from '../../Constants';
 import { deleteReport } from '../../fetchers/activityReports';
-import Filter from './Filter';
-import ReportMenu from './ReportMenu';
 import TooltipWithCollection from '../../components/TooltipWithCollection';
 import Tooltip from '../../components/Tooltip';
+import TableHeader from '../../components/TableHeader';
 
-function ReportsRow({ reports, removeAlert, message }) {
+export function ReportsRow({ reports, removeAlert, message }) {
   const history = useHistory();
-  const { isOpen, openModal, closeModal } = useModal();
-  const ConnectModal = connectModal(DeleteReportModal);
-
   const [idToDelete, updateIdToDelete] = useState(0);
+  const modalRef = useRef();
 
   const onDelete = async (reportId) => {
+    if (modalRef && modalRef.current) {
+      modalRef.current.toggleModal(false);
+    }
     await deleteReport(reportId);
     removeAlert(reportId);
-    closeModal();
   };
 
   const tableRows = reports.map((report, index, { length }) => {
@@ -39,17 +34,18 @@ function ReportsRow({ reports, removeAlert, message }) {
       displayId,
       activityRecipients,
       startDate,
-      author,
       collaborators,
       calculatedStatus,
       pendingApprovals,
       approvers,
+      createdAt,
+      creatorName,
     } = report;
 
     const justSubmitted = message && message.reportId === id;
 
     const recipients = activityRecipients.map((ar) => (
-      ar.grant ? ar.grant.grantee.name : ar.name
+      ar.grant ? ar.grant.recipient.name : ar.name
     ));
 
     const approversToolTipText = approvers ? approvers.map((a) => a.User.fullName) : [];
@@ -64,8 +60,8 @@ function ReportsRow({ reports, removeAlert, message }) {
     let displayStatus = calculatedStatus === 'needs_action' ? 'Needs action' : calculatedStatus;
 
     if (justSubmitted && message.status !== calculatedStatus) {
-      displayStatus = message.status;
-      statusClassName = `smart-hub--table-tag-status smart-hub--status-${message.status}`;
+      displayStatus = message.status === 'unlocked' ? 'Needs action' : message.status;
+      statusClassName = `smart-hub--table-tag-status smart-hub--status-${message.status === 'unlocked' ? 'needs_action' : message.status}`;
     }
     const menuItems = [
       {
@@ -74,7 +70,7 @@ function ReportsRow({ reports, removeAlert, message }) {
       },
       {
         label: 'Delete',
-        onClick: () => { updateIdToDelete(id); openModal(); },
+        onClick: () => { updateIdToDelete(id); modalRef.current.toggleModal(true); },
       },
     ];
 
@@ -92,9 +88,17 @@ function ReportsRow({ reports, removeAlert, message }) {
         </td>
         <td>{startDate}</td>
         <td>
-          <span className="smart-hub--ellipsis" title={author ? author.fullName : ''}>
-            {author ? author.fullName : ''}
-          </span>
+          { creatorName && (
+          <Tooltip
+            displayText={creatorName}
+            tooltipText={creatorName}
+            buttonLabel={`click to reveal: ${creatorName} `}
+            screenReadDisplayText={false}
+          />
+          )}
+        </td>
+        <td>
+          {moment(createdAt).format('MM/DD/YYYY')}
         </td>
         <td>
           <TooltipWithCollection collection={collaboratorNames} collectionTitle={`collaborators for ${displayId}`} />
@@ -103,12 +107,12 @@ function ReportsRow({ reports, removeAlert, message }) {
           {approversToolTipText.length > 0
             ? (
               <Tooltip
-                displayText={<span className="smart-hub--tooltip-truncated">{pendingApprovals}</span>}
+                displayText={pendingApprovals}
                 tooltipText={approversToolTipText.join('\n')}
                 buttonLabel={`pending approvals: ${approversToolTipText}. Click button to visually reveal this information.`}
               />
             )
-            : '' }
+            : ''}
         </td>
         <td>
           <Tag
@@ -126,13 +130,24 @@ function ReportsRow({ reports, removeAlert, message }) {
 
   return (
     <>
-      <ConnectModal
-        onDelete={() => onDelete(idToDelete)}
-        onClose={closeModal}
-        isOpen={isOpen}
-        openModal={openModal}
-        closeModal={closeModal}
-      />
+      <Modal
+        modalRef={modalRef}
+        onOk={() => onDelete(idToDelete)}
+        modalId="DeleteReportModal"
+        title="Delete Activity Report"
+        okButtonText="Delete"
+        okButtonAriaLabel="This button will permanently delete the report."
+      >
+        <div>
+          Are you sure you want to delete this activity report?
+          <br />
+          This action
+          {' '}
+          <b>cannot</b>
+          {' '}
+          be undone.
+        </div>
+      </Modal>
       {tableRows}
     </>
   );
@@ -158,18 +173,6 @@ ReportsRow.defaultProps = {
   },
 };
 
-export function renderTotal(offset, perPage, activePage, reportsCount) {
-  const from = offset >= reportsCount ? 0 : offset + 1;
-  const offsetTo = perPage * activePage;
-  let to;
-  if (offsetTo > reportsCount) {
-    to = reportsCount;
-  } else {
-    to = offsetTo;
-  }
-  return `${from}-${to} of ${reportsCount}`;
-}
-
 function MyAlerts(props) {
   const {
     reports,
@@ -180,13 +183,17 @@ function MyAlerts(props) {
     alertsActivePage,
     alertReportsCount,
     sortHandler,
-    hasFilters,
     updateReportFilters,
     updateReportAlerts,
     setAlertReportsCount,
     handleDownloadAllAlerts,
     loading,
     message,
+    isDownloadingAlerts,
+    downloadAlertsError,
+    setDownloadAlertsError,
+    downloadAllAlertsButtonRef,
+    downloadSelectedAlertsButtonRef,
   } = props;
   const getClassNamesFor = (name) => (alertsSortConfig.sortBy === name ? alertsSortConfig.direction : '');
 
@@ -234,17 +241,16 @@ function MyAlerts(props) {
     setAlertReportsCount(alertReportsCount - 1);
     updateReportAlerts(newReports);
   };
-
   return (
     <>
-      {reports && reports.length === 0 && !hasFilters && (
+      {reports && reports.length === 0 && (
         <Container className="landing" padding={0} loading={loading}>
-          <div id="caughtUp">
+          <div className="text-center padding-10">
             <div>
               <h2>You&apos;re all caught up!</h2>
             </div>
             {newBtn && (
-              <p id="beginNew">
+              <p className="padding-bottom-2">
                 Would you like to begin a new activity report?
               </p>
             )}
@@ -253,64 +259,37 @@ function MyAlerts(props) {
         </Container>
       )}
 
-      {reports && (reports.length > 0 || hasFilters) && (
-        <Container className="landing inline-size maxw-full" padding={0} loading={loading} loadingLabel="My activity report alerts loading">
-          <span className="smart-hub--alerts-table-controls display-flex flex-row flex-align-center">
-            <Filter applyFilters={updateReportFilters} forMyAlerts />
-            <ReportMenu
-              label="My Alerts report menu"
-              hasSelectedReports={false}
-              onExportAll={handleDownloadAllAlerts}
-            />
-          </span>
-          <span className="smart-hub--table-nav">
-            <span
-              id="alertsTotalCount"
-              aria-label={`Displaying rows ${renderTotal(
-                alertsOffset,
-                alertsPerPage,
-                alertsActivePage,
-                alertReportsCount,
-              )}`}
-            >
-              {renderTotal(
-                alertsOffset,
-                alertsPerPage,
-                alertsActivePage,
-                alertReportsCount,
-              )}
-            </span>
-          </span>
-          <span className="smart-hub--table-nav">
-            <span
-              id="alertsTotalCount"
-              aria-label={`Displaying rows ${renderTotal(
-                alertsOffset,
-                alertsPerPage,
-                alertsActivePage,
-                alertReportsCount,
-              )}`}
-            >
-              {renderTotal(
-                alertsOffset,
-                alertsPerPage,
-                alertsActivePage,
-                alertReportsCount,
-              )}
-            </span>
-          </span>
+      {reports && (reports.length > 0) && (
+        <Container className="landing inline-size-auto maxw-full" padding={0} loading={loading} loadingLabel="My activity report alerts loading">
+          <TableHeader
+            title="My activity report alerts"
+            menuAriaLabel="My alerts report menu"
+            forMyAlerts
+            onUpdateFilters={updateReportFilters}
+            handleDownloadAll={handleDownloadAllAlerts}
+            count={alertReportsCount}
+            activePage={alertsActivePage}
+            offset={alertsOffset}
+            perPage={alertsPerPage}
+            hidePagination
+            isDownloading={isDownloadingAlerts}
+            downloadError={downloadAlertsError}
+            setDownloadError={setDownloadAlertsError}
+            downloadAllButtonRef={downloadAllAlertsButtonRef}
+            downloadSelectedButtonRef={downloadSelectedAlertsButtonRef}
+          />
           <div className="usa-table-container--scrollable">
-            <Table className="usa-table usa-table--borderless" fullWidth>
-              <caption className="smart-hub--table-caption">
-                My activity report alerts
-                <p className="usa-sr-only">with sorting</p>
+            <Table fullWidth striped>
+              <caption className="smart-hub--table-caption usa-sr-only">
+                My activity report alerts with sorting
               </caption>
               <thead>
                 <tr>
                   {renderColumnHeader('Report ID', 'regionId')}
-                  {renderColumnHeader('Grantee', 'activityRecipients')}
-                  {renderColumnHeader('Start date', 'startDate')}
+                  {renderColumnHeader('Recipient', 'activityRecipients')}
+                  {renderColumnHeader('Date started', 'startDate')}
                   {renderColumnHeader('Creator', 'author')}
+                  {renderColumnHeader('Created date', 'createdAt')}
                   {renderColumnHeader('Collaborator(s)', 'collaborators')}
                   {renderColumnHeader('Approvers(s)', 'approvals', true)}
                   {renderColumnHeader('Status', 'calculatedStatus')}
@@ -337,8 +316,7 @@ MyAlerts.propTypes = {
   alertsActivePage: PropTypes.number,
   alertReportsCount: PropTypes.number.isRequired,
   sortHandler: PropTypes.func.isRequired,
-  hasFilters: PropTypes.bool,
-  updateReportFilters: PropTypes.func.isRequired,
+  updateReportFilters: PropTypes.func,
   updateReportAlerts: PropTypes.func.isRequired,
   setAlertReportsCount: PropTypes.func.isRequired,
   handleDownloadAllAlerts: PropTypes.func.isRequired,
@@ -349,21 +327,36 @@ MyAlerts.propTypes = {
     displayId: PropTypes.string,
     status: PropTypes.string,
   }),
+  isDownloadingAlerts: PropTypes.bool,
+  downloadAlertsError: PropTypes.bool,
+  setDownloadAlertsError: PropTypes.func.isRequired,
+  downloadAllAlertsButtonRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
+  ]),
+  downloadSelectedAlertsButtonRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
+  ]),
 };
 
 MyAlerts.defaultProps = {
+  updateReportFilters: () => { },
   reports: [],
   alertsSortConfig: { sortBy: 'startDate', direction: 'asc' },
   alertsOffset: 0,
   alertsPerPage: ALERTS_PER_PAGE,
   alertsActivePage: 1,
-  hasFilters: false,
   message: {
     time: '',
     reportId: '',
     displayId: '',
     status: '',
   },
+  isDownloadingAlerts: false,
+  downloadAlertsError: false,
+  downloadAllAlertsButtonRef: () => {},
+  downloadSelectedAlertsButtonRef: () => {},
 };
 
 export default MyAlerts;

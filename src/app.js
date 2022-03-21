@@ -9,7 +9,7 @@ import { CronJob } from 'cron';
 import { hsesAuth } from './middleware/authMiddleware';
 import { retrieveUserDetails } from './services/currentUser';
 import cookieSession from './middleware/sessionMiddleware';
-import updateGrantsGrantees from './lib/updateGrantsGrantees';
+import updateGrantsRecipients from './lib/updateGrantsRecipients';
 import { logger, auditLogger, requestLogger } from './logger';
 
 const app = express();
@@ -71,7 +71,7 @@ const timezone = 'America/New_York';
 
 const runJob = () => {
   try {
-    return updateGrantsGrantees();
+    return updateGrantsRecipients();
   } catch (error) {
     auditLogger.error(`Error processing HSES file: ${error}`);
     logger.error(error.stack);
@@ -80,9 +80,9 @@ const runJob = () => {
 };
 
 // Run only on one instance
-if (process.env.CF_INSTANCE_INDEX === '0') {
+if (process.env.CF_INSTANCE_INDEX === '0' && process.env.NODE_ENV === 'production') {
   const job = new CronJob(schedule, () => runJob(), null, true, timezone);
   job.start();
 }
 
-module.exports = app;
+export default app;

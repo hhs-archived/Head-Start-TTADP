@@ -1,16 +1,49 @@
-export const CONTAINS = 'Contains';
-export const NOT_CONTAINS = 'Does not contain';
-export const BEFORE = 'Is before';
-export const AFTER = 'Is after';
-export const WITHIN = 'Is within';
+import {
+  regionFilter,
+  endDateFilter,
+  startDateFilter,
+  grantNumberFilter,
+  programSpecialistFilter,
+  programTypeFilter,
+  reasonsFilter,
+  recipientFilter,
+  reportIdFilter,
+  specialistRoleFilter,
+  stateCodeFilter,
+  targetPopulationsFilter,
+  topicsFilter,
+  otherEntitiesFilter,
+} from '../../components/filter/activityReportFilters';
 
-export const SELECT_CONDITIONS = [CONTAINS, NOT_CONTAINS];
-export const DATE_CONDITIONS = [BEFORE, AFTER, WITHIN];
+export const LANDING_BASE_FILTER_CONFIG = [
+  startDateFilter,
+  endDateFilter,
+  grantNumberFilter,
+  otherEntitiesFilter,
+  programSpecialistFilter,
+  programTypeFilter,
+  reasonsFilter,
+  recipientFilter,
+  reportIdFilter,
+  specialistRoleFilter,
+  stateCodeFilter,
+  targetPopulationsFilter,
+  topicsFilter,
+];
 
-export const QUERY_CONDITIONS = {
-  [CONTAINS]: 'in[]',
-  [NOT_CONTAINS]: 'nin[]',
-  [BEFORE]: 'bef',
-  [AFTER]: 'aft',
-  [WITHIN]: 'win',
-};
+export const LANDING_FILTER_CONFIG_WITH_REGIONS = [
+  startDateFilter,
+  endDateFilter,
+  grantNumberFilter,
+  otherEntitiesFilter,
+  programSpecialistFilter,
+  programTypeFilter,
+  reasonsFilter,
+  recipientFilter,
+  regionFilter,
+  reportIdFilter,
+  specialistRoleFilter,
+  stateCodeFilter,
+  targetPopulationsFilter,
+  topicsFilter,
+];

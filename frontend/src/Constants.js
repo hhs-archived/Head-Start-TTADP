@@ -1,11 +1,42 @@
 import moment from 'moment';
 
+export const CONTAINS = 'contains';
+export const NOT_CONTAINS = 'does not contain';
+export const BEFORE = 'is on or before';
+export const AFTER = 'is on or after';
+export const WITHIN = 'is within';
+export const IS = 'is';
+export const IS_NOT = 'is not';
+
+export const SELECT_CONDITIONS = [CONTAINS, NOT_CONTAINS];
+export const FILTER_CONDITIONS = [IS, IS_NOT];
+
+export const QUERY_CONDITIONS = {
+  [CONTAINS]: 'ctn[]',
+  [NOT_CONTAINS]: 'nctn[]',
+  [BEFORE]: 'bef',
+  [AFTER]: 'aft',
+  [WITHIN]: 'win',
+  [IS]: 'in[]',
+  [IS_NOT]: 'nin[]',
+};
+
+export const DATE_CONDITIONS = [
+  IS,
+  AFTER,
+  BEFORE,
+  WITHIN,
+];
+
+export const DATE_FORMAT = 'MM/DD/YYYY';
+
 export const SCOPE_IDS = {
   SITE_ACCESS: 1,
   ADMIN: 2,
   READ_WRITE_ACTIVITY_REPORTS: 3,
   READ_ACTIVITY_REPORTS: 4,
   APPROVE_ACTIVITY_REPORTS: 5,
+  UNLOCK_APPROVED_REPORTS: 6,
 };
 
 export const REGIONAL_SCOPES = {
@@ -32,7 +63,49 @@ export const GLOBAL_SCOPES = {
     name: 'ADMIN',
     description: 'User can view the admin panel and change user permissions (including their own)',
   },
+  [SCOPE_IDS.UNLOCK_APPROVED_REPORTS]: {
+    name: 'UNLOCK_APPROVED_REPORTS',
+    description: 'User can unlock approved reports.',
+  },
 };
+
+// Note that if this reasons list is changed, it needs also to be changed in
+// - src/constants.js
+export const REASONS = [
+  'Below Competitive Threshold (CLASS)',
+  'Below Quality Threshold (CLASS)',
+  'Change in Scope',
+  'Child Incidents',
+  'Complaint',
+  'COVID-19 response',
+  'Full Enrollment',
+  'New Grantee',
+  'New Director or Management',
+  'New Program Option',
+  'New Staff / Turnover',
+  'Ongoing Quality Improvement',
+  'Planning/Coordination (also TTA Plan Agreement)',
+  'School Readiness Goals',
+  'Monitoring | Area of Concern',
+  'Monitoring | Noncompliance',
+  'Monitoring | Deficiency',
+];
+
+// Note that if this topic list is changed, it needs also to be changed in
+// - src/constants.js
+export const TARGET_POPULATIONS = [
+  'Infants and Toddlers (ages birth to 3)',
+  'Preschool (ages 3-5)',
+  'Pregnant Women',
+  '--------------------',
+  'Affected by Child Welfare Involvement',
+  'Affected by Disaster',
+  'Affected by Substance Use',
+  'Children Experiencing Homelessness',
+  'Children with Disabilities',
+  'Children with Special Health Care Needs',
+  'Dual-Language Learners',
+];
 
 export const ROLES = [
   'Regional Program Manager',
@@ -50,6 +123,62 @@ export const ROLES = [
   'Grantee Specialist',
   'Health Specialist',
   'System Specialist',
+];
+
+export const OTHER_ENTITY_TYPES = [
+  'CCDF / Child Care Administrator',
+  'Head Start Collaboration Office',
+  'QRIS System',
+  'Regional Head Start Association',
+  'Regional TTA / Other Specialists',
+  'State CCR&R',
+  'State Early Learning Standards',
+  'State Education System',
+  'State Head Start Association',
+  'State Health System',
+  'State Professional Development / Continuing Education',
+];
+
+// Note that if this topic list is changed, it needs also to be changed in
+// - src/constants.js
+export const TOPICS = [
+  'Behavioral / Mental Health / Trauma',
+  'Child Assessment, Development, Screening',
+  'CLASS: Classroom Organization',
+  'CLASS: Emotional Support',
+  'CLASS: Instructional Support',
+  'Coaching',
+  'Communication',
+  'Community and Self-Assessment',
+  'Culture & Language',
+  'Curriculum (Instructional or Parenting)',
+  'Data and Evaluation',
+  'ERSEA',
+  'Environmental Health and Safety / EPRR',
+  'Equity',
+  'Facilities',
+  'Family Support Services',
+  'Fiscal / Budget',
+  'Five-Year Grant',
+  'Home Visiting',
+  'Human Resources',
+  'Leadership / Governance',
+  'Learning Environments',
+  'Nutrition',
+  'Oral Health',
+  'Parent and Family Engagement',
+  'Partnerships and Community Engagement',
+  'Physical Health and Screenings',
+  'Pregnancy Services / Expectant Families',
+  'Program Planning and Services',
+  'Quality Improvement Plan / QIP',
+  'Recordkeeping and Reporting',
+  'Safety Practices',
+  'Staff Wellness',
+  'Teaching Practices / Teacher-Child Interactions',
+  'Technology and Information Systems',
+  'Transition Practices',
+  'Transportation',
 ];
 
 export const REGIONS = [
@@ -82,14 +211,35 @@ export const REPORT_STATUSES = {
   APPROVED: 'approved',
 };
 
+export const MODEL_TYPES = {
+  ACTIVITY_REPORT: 'activityReport',
+  RECIPIENT: 'recipient',
+};
+
 export const REPORTS_PER_PAGE = 10;
 export const ALERTS_PER_PAGE = 10;
+export const RECIPIENTS_PER_PAGE = 12;
 export const GOVERNMENT_HOSTNAME_EXTENSION = '.ohs.acf.hhs.gov';
 export const ESCAPE_KEY_CODE = 27;
+export const GOALS_PER_PAGE = 5;
 
 // In Internet Explorer (tested on release 9 and 11) and Firefox 36 and earlier
 // the Esc key returns "Esc" instead of "Escape".
 export const ESCAPE_KEY_CODES = ['Escape', 'Esc'];
 
 export const DATE_FMT = 'YYYY/MM/DD';
+export const DATE_DISPLAY_FORMAT = 'MM/DD/YYYY';
 export const EARLIEST_INC_FILTER_DATE = moment('2020-08-31');
+
+export const GOAL_CLOSE_REASONS = [
+  'Duplicate goal',
+  'Recipient request',
+  'TTA complete',
+];
+
+export const GOAL_SUSPEND_REASONS = [
+  'Key staff turnover',
+  'Recipient request',
+  'Recipient is not responding',
+  'Other',
+];

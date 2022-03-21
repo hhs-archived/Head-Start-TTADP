@@ -44,7 +44,6 @@ const submittedReport = {
   startDate: '2000-01-01T12:00:00Z',
   activityRecipientType: 'something',
   requester: 'requester',
-  programTypes: ['type'],
   targetPopulations: ['pop'],
   reason: ['reason'],
   participants: ['participants'],
@@ -106,6 +105,7 @@ describe('activityReportApprovers services', () => {
           expect(approver.status).toEqual(APPROVER_STATUSES.NEEDS_ACTION);
         });
         const updatedReport = await activityReportById(report1.id);
+        expect(updatedReport.approvedAt).toBeNull();
         expect(updatedReport.submissionStatus).toEqual(REPORT_STATUSES.SUBMITTED);
         expect(updatedReport.calculatedStatus).toEqual(REPORT_STATUSES.NEEDS_ACTION);
       });
@@ -124,6 +124,7 @@ describe('activityReportApprovers services', () => {
         });
         expect(approver.status).toEqual(APPROVER_STATUSES.APPROVED);
         const updatedReport = await activityReportById(report2.id);
+        expect(updatedReport.approvedAt).toBeTruthy();
         expect(updatedReport.submissionStatus).toEqual(REPORT_STATUSES.SUBMITTED);
         expect(updatedReport.calculatedStatus).toEqual(REPORT_STATUSES.APPROVED);
       });
@@ -212,7 +213,9 @@ describe('activityReportApprovers services', () => {
       const afterRestore = await syncApprovers(report.id, [mockManager.id, secondMockManager.id]);
       // check restored
       expect(afterRestore.length).toBe(2);
-      expect(afterRestore[0].userId).toBe(secondMockManager.id);
+      const approverIds = afterRestore.map((a) => a.userId);
+      expect(approverIds).toContain(secondMockManager.id);
+      expect(approverIds).toContain(mockManager.id);
       expect(afterRestore[0].status).toEqual(APPROVER_STATUSES.NEEDS_ACTION);
     });
   });

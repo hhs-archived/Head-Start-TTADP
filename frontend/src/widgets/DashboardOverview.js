@@ -7,24 +7,36 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import withWidgetData from './withWidgetData';
 import './DashboardOverview.css';
-import FormatNumber from './WidgetHelper';
-import Loader from '../components/Loader';
 
-function Field({
-  label, labelExt, data, icon, iconColor, backgroundColor, decimalPlaces,
+import Loader from '../components/Loader';
+import Tooltip from '../components/Tooltip';
+
+export function Field({
+  label,
+  data,
+  icon,
+  iconColor,
+  backgroundColor,
+  showTooltip,
+  tooltipText,
 }) {
   return (
-    <Grid gap={4} desktop={{ col: 'fill' }} tablet={{ col: 6 }} mobileLg={{ col: 12 }} className="smart-hub--dashboard-overview-field margin-bottom-1 display-flex bg-white shadow-2 padding-2">
+    <Grid gap={4} desktop={{ col: 'fill' }} tablet={{ col: 6 }} mobileLg={{ col: 12 }} className="smart-hub--dashboard-overview-field margin-bottom-1 display-flex bg-white shadow-2 padding-y-2 padding-x-1">
       <span className="smart-hub--dashboard-overview-field-icon flex-1 display-flex flex-justify-center flex-align-center">
         <span className="smart-hub--dashboard-overview-field-icon-background display-flex flex-justify-center flex-align-center" style={{ backgroundColor }}>
           <FontAwesomeIcon color={iconColor} icon={icon} />
         </span>
       </span>
       <span className="smart-hub--dashboard-overview-field-label display-flex flex-2 flex-column flex-justify-center">
-        <span className="text-bold smart-hub--overview-font-size">{FormatNumber(data, decimalPlaces)}</span>
-        {label}
-        {' '}
-        {labelExt}
+        <span className="text-bold smart-hub--overview-font-size">{data}</span>
+        {showTooltip ? (
+          <Tooltip
+            displayText={label}
+            screenReadDisplayText={false}
+            buttonLabel={`${tooltipText} click to visually reveal this information`}
+            tooltipText={tooltipText}
+          />
+        ) : label}
       </span>
     </Grid>
   );
@@ -32,9 +44,7 @@ function Field({
 
 Field.propTypes = {
   label: PropTypes.string.isRequired,
-  labelExt: PropTypes.string,
   data: PropTypes.string.isRequired,
-  decimalPlaces: PropTypes.number,
   icon: PropTypes.shape({
     prefix: PropTypes.string,
     iconName: PropTypes.string,
@@ -43,22 +53,110 @@ Field.propTypes = {
   }).isRequired,
   iconColor: PropTypes.string.isRequired,
   backgroundColor: PropTypes.string.isRequired,
+  tooltipText: PropTypes.string,
+  showTooltip: PropTypes.bool,
 };
 
 Field.defaultProps = {
-  labelExt: '',
-  decimalPlaces: 0,
+  tooltipText: '',
+  showTooltip: false,
 };
 
-export function DashboardOverviewWidget({ data, loading }) {
+const DASHBOARD_FIELDS = {
+  'Activity reports': {
+    render: (data, showTooltip) => (
+      <Field
+        key="activity-reports"
+        showTooltip={showTooltip}
+        tooltipText="The number of approved activity reports."
+        icon={faChartBar}
+        iconColor="#148439"
+        backgroundColor="#F0FCF4"
+        label="Activity reports"
+        data={data.numReports}
+      />
+    ),
+  },
+  'Grants served': {
+    render: (data, showTooltip) => (
+      <Field
+        key="grants-served"
+        showTooltip={showTooltip}
+        icon={faBuilding}
+        iconColor="#2B7FB9"
+        backgroundColor="#E2EFF7"
+        label="Grants served"
+        tooltipText="Each grant is only counted once"
+        data={data.numGrants}
+      />
+    ),
+  },
+  Participants: {
+    render: (data, showTooltip) => (
+      <Field
+        key="participants"
+        showTooltip={showTooltip}
+        tooltipText="The number of people in all activities"
+        icon={faUserFriends}
+        iconColor="#264A64"
+        backgroundColor="#ECEEF1"
+        label="Participants"
+        data={data.numParticipants}
+      />
+    ),
+  },
+  'Hours of TTA': {
+    render: (data, showTooltip) => (
+      <Field
+        key="hours-of-tta"
+        showTooltip={showTooltip}
+        tooltipText="Rounded to the nearest half hour"
+        icon={faClock}
+        iconColor="#E29F4D"
+        backgroundColor="#FFF1E0"
+        label="Hours of TTA"
+        data={data.sumDuration}
+        decimalPlaces={1}
+      />
+    ),
+  },
+  'In-person activities': {
+    render: (data, showTooltip) => (
+      <Field
+        key="in-person-activities"
+        icon={faUser}
+        showTooltip={showTooltip}
+        tooltipText="Excludes virtual activities"
+        iconColor="#A12854"
+        backgroundColor="#FFE8F0"
+        label="In-person activities"
+        data={data.inPerson}
+      />
+    ),
+  },
+  'Recipients served': {
+    render: (data, showTooltip) => (
+      <Field
+        key="recipients-served"
+        icon={faUser}
+        showTooltip={showTooltip}
+        label={`${data.numRecipients} ${data.numRecipients === 1 ? 'Recipient' : 'Recipients'} of ${data.totalRecipients}`}
+        iconColor="#A12854"
+        backgroundColor="#FFE8F0"
+        tooltipText="Recipients have at least one active grant"
+        data={data.recipientPercentage}
+      />
+    ),
+  },
+};
+
+export function DashboardOverviewWidget({
+  data, loading, fields, showTooltips,
+}) {
   return (
     <Grid row className="smart-hub--dashboard-overview margin-bottom-3 position-relative">
       <Loader loading={loading} loadingLabel="Overview loading" />
-      <Field icon={faChartBar} iconColor="#148439" backgroundColor="#F0FCF4" label="Activity reports" data={data.numReports} />
-      <Field icon={faBuilding} iconColor="#2B7FB9" backgroundColor="#E2EFF7" label="Grants served" data={data.numGrants} />
-      <Field icon={faUserFriends} iconColor="#264A64" backgroundColor="#ECEEF1" label="Participants" data={data.numParticipants} />
-      <Field icon={faClock} iconColor="#E29F4D" backgroundColor="#FFF1E0" label="Hours of TTA" data={data.sumDuration} decimalPlaces={1} />
-      <Field icon={faUser} iconColor="#A12854" backgroundColor="#FFE8F0" label="In-person activities" data={data.inPerson} />
+      { fields.map((field) => DASHBOARD_FIELDS[field].render(data, showTooltips, field)) }
     </Grid>
   );
 }
@@ -70,8 +168,12 @@ DashboardOverviewWidget.propTypes = {
     numGrants: PropTypes.string,
     sumDuration: PropTypes.string,
     inPerson: PropTypes.string,
+    recipientPercentage: PropTypes.string,
+    totalRecipients: PropTypes.string,
   }),
   loading: PropTypes.bool,
+  fields: PropTypes.arrayOf(PropTypes.string),
+  showTooltips: PropTypes.bool,
 };
 
 DashboardOverviewWidget.defaultProps = {
@@ -81,8 +183,19 @@ DashboardOverviewWidget.defaultProps = {
     numGrants: '0',
     sumDuration: '0',
     inPerson: '0',
+    totalRecipients: '0',
+    recipientPercentage: '0%',
+    numRecipients: '0',
   },
   loading: false,
+  showTooltips: false,
+  fields: [
+    'Activity reports',
+    'Grants served',
+    'Participants',
+    'Hours of TTA',
+    'In-person activities',
+  ],
 };
 
-export default withWidgetData(DashboardOverviewWidget, 'dashboardOverview');
+export default withWidgetData(DashboardOverviewWidget, 'overview');

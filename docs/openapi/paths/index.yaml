@@ -12,8 +12,8 @@
   $ref: './admin.yaml'
 '/admin/users':
   $ref: './adminAllUsers.yaml'
-'/admin/grantees':
-  $ref: './grantees.yaml'
+'/admin/recipients':
+  $ref: './recipients.yaml'
 '/admin/grants/cdi':
   $ref: './grants.yaml'
 '/admin/grants/cdi/{grantId}':
@@ -38,17 +38,27 @@
   $ref: './activity-reports/activity-reports-id.yaml'
 '/activity-reports/{activityReportId}/submit':
   $ref: './activity-reports/submit.yaml'
+'/activity-reports/{activityReportId}/unlock':
+  $ref: './activity-reports/unlock.yaml'
 '/activity-reports/{activityReportId}/review':
   $ref: './activity-reports/review.yaml'
 '/activity-reports/{activityReportId}/reset':
   $ref: './activity-reports/reset.yaml'
 '/files':
   $ref: './files.yaml'
-'/widgets/dashboardOverview':
-  $ref: './widgets/dashboardOverview.yaml'
+'/recipient/{recipientId}':
+  $ref: './recipient/recipient-id.yaml'
+'/recipient/search':
+  $ref: './recipient/recipient-search.yaml'
+'/recipient/goals/{recipientId}':
+  $ref: './recipient/recipient-goals.yaml'
+'/goals/{goalId}/changeStatus':
+  $ref: './goals/goal-status.yaml'
 '/widgets/overview':
   $ref: './widgets/overview.yaml'
 '/widgets/reasonList':
   $ref: './widgets/reasonList.yaml'
 '/widgets/topicAndFrequencyGraph':
   $ref: './widgets/topicAndFrequencyGraph.yaml'
+
+

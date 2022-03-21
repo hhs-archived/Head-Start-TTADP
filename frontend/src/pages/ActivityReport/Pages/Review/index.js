@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import moment from 'moment';
 import PropTypes from 'prop-types';
-import {
-  Accordion,
-} from '@trussworks/react-uswds';
 import { Helmet } from 'react-helmet';
-
 import Submitter from './Submitter';
 import Approver from './Approver';
 import PrintSummary from '../PrintSummary';
 import { REPORT_STATUSES } from '../../../../Constants';
 import './index.css';
+import { Accordion } from '../../../../components/Accordion';
 
 const ReviewSubmit = ({
   onSubmit,
@@ -24,6 +22,7 @@ const ReviewSubmit = ({
   onSaveForm,
   pages,
   updateShowValidationErrors,
+  lastSaveTime,
 }) => {
   const { additionalNotes, calculatedStatus } = formData;
 
@@ -76,6 +75,7 @@ const ReviewSubmit = ({
         <title>Review and submit</title>
       </Helmet>
       <PrintSummary reportCreator={reportCreator} />
+
       {!isApprover
         && (
           <Submitter
@@ -86,8 +86,12 @@ const ReviewSubmit = ({
             formData={formData}
             error={error}
             onSaveForm={onSaveForm}
+            lastSaveTime={lastSaveTime}
           >
-            <Accordion bordered={false} items={items} />
+            <>
+
+              <Accordion bordered={false} items={items} />
+            </>
           </Submitter>
         )}
       {isApprover
@@ -100,7 +104,9 @@ const ReviewSubmit = ({
             formData={formData}
             isPendingApprover={isPendingApprover}
           >
-            <Accordion bordered={false} items={items} />
+            <>
+              <Accordion bordered={false} items={items} />
+            </>
           </Approver>
         )}
     </>
@@ -142,6 +148,7 @@ ReviewSubmit.propTypes = {
     state: PropTypes.string,
     label: PropTypes.string,
   })).isRequired,
+  lastSaveTime: PropTypes.instanceOf(moment).isRequired,
 };
 
 export default ReviewSubmit;

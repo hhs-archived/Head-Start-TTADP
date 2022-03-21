@@ -1,8 +1,14 @@
+import { REPORT_STATUSES } from '../constants';
 import {
   ActivityReport,
   Goal,
   Objective,
   User,
+  ActivityRecipient,
+  ActivityReportApprover,
+  Grant,
+  Recipient,
+  ActivityReportCollaborator,
 } from '../models';
 import { activityReportToCsvRecord, makeGoalsAndObjectivesObject, extractListOfGoalsAndObjectives } from './transform';
 
@@ -17,18 +23,22 @@ describe('activityReportToCsvRecord', () => {
 
   const mockCollaborators = [
     {
-      id: 2100,
-      name: 'Collaborator 1',
-      hsesUserId: '2100',
-      hsesUsername: 'collaborator.one',
-      role: ['Grantee Specialist', 'Health Specialist'],
+      user: {
+        id: 2100,
+        name: 'Collaborator 1',
+        hsesUserId: '2100',
+        hsesUsername: 'collaborator.one',
+        role: ['Grantee Specialist', 'Health Specialist'],
+      },
     },
     {
-      id: 2101,
-      name: 'Collaborator 2',
-      hsesUserId: '2101',
-      hsesUsername: 'collaborator.two',
-      role: [],
+      user: {
+        id: 2101,
+        name: 'Collaborator 2',
+        hsesUserId: '2101',
+        hsesUsername: 'collaborator.two',
+        role: [],
+      },
     },
   ];
 
@@ -98,11 +108,74 @@ describe('activityReportToCsvRecord', () => {
     },
   ];
 
+  const mockApprovers = [
+    {
+      activityReportId: 209914,
+      status: 'approved',
+      userId: 3,
+      User: {
+        name: 'Test Approver 1',
+
+      },
+    },
+    {
+      activityReportId: 209914,
+      status: 'approved',
+      userId: 4,
+      User: {
+        name: 'Test Approver 3',
+
+      },
+    },
+    {
+
+      activityReportId: 209914,
+      status: 'approved',
+      userId: 5,
+      User: {
+        name: 'Test Approver 2',
+
+      },
+    },
+  ];
+
+  const mockActivityRecipients = [
+    {
+      id: 4,
+      grantId: 4,
+      grant: {
+        name: 'test4', programSpecialistName: 'Program Specialist 4', recipientId: 4, number: 'grant number 4', recipient: { id: 4, name: 'test4' },
+      },
+    },
+    {
+      id: 1,
+      grantId: 1,
+      grant: {
+        name: 'test1', programSpecialistName: 'Program Specialist 1', recipientId: 1, number: 'grant number 1', recipient: { id: 1, name: 'test1' },
+      },
+    },
+    {
+      id: 2,
+      grantId: 2,
+      grant: {
+        name: 'test2', programSpecialistName: 'Program Specialist 2', recipientId: 2, number: 'grant number 2', recipient: { id: 2, name: 'test2' },
+      },
+    },
+    {
+      id: 3,
+      grantId: 3,
+      grant: {
+        name: 'test3', programSpecialistName: 'Program Specialist 1', recipientId: 3, number: 'grant number 3', recipient: { id: 3, name: 'test3' },
+      },
+    },
+  ];
+
   const mockReport = {
     id: 209914,
     regionId: 14,
     reason: 'Test CSV Export',
     submissionStatus: 'approved',
+    calculatedStatus: REPORT_STATUSES.APPROVED,
     numberOfParticipants: 12,
     deliveryMethod: 'virtual',
     duration: 4.5,
@@ -112,7 +185,10 @@ describe('activityReportToCsvRecord', () => {
     nonECLKCResourcesUsed: ['one', 'two'],
     author: mockAuthor,
     lastUpdatedBy: mockAuthor,
-    collaborators: mockCollaborators,
+    activityReportCollaborators: mockCollaborators,
+    approvedAt: new Date(),
+    activityRecipients: mockActivityRecipients,
+    approvers: mockApprovers,
   };
 
   it('transforms arrays of strings into strings', async () => {
@@ -128,15 +204,140 @@ describe('activityReportToCsvRecord', () => {
     expect(output).toMatchObject(expectedOutput);
   });
 
+  describe('HTML Tag removal', () => {
+    it('removes tags from the context field', async () => {
+      const report = ActivityReport.build({
+        context: '<p data-attribute="test">test text</p>',
+      });
+      const output = await activityReportToCsvRecord(report);
+      const expectedOutput = {
+        context: 'test text',
+      };
+      expect(output).toMatchObject(expectedOutput);
+    });
+
+    it('handles ordered lists', async () => {
+      const report = ActivityReport.build({
+        context: `
+        <ol>
+          <li>first</li>
+          <li>second</li>
+        </ol>
+        `,
+      });
+      const output = await activityReportToCsvRecord(report);
+      const expectedOutput = {
+        context: ' 1. first\n 2. second',
+      };
+      expect(output).toMatchObject(expectedOutput);
+    });
+
+    it('handles nested lists', async () => {
+      const report = ActivityReport.build({
+        context: `
+        <ol>
+          <li>
+            <ol>
+              <li>
+                one
+              </li>
+              <li>
+                two
+              </li>
+            </ol>
+          </li>
+          <li>second</li>
+        </ol>
+        `,
+      });
+      const output = await activityReportToCsvRecord(report);
+      const expectedOutput = {
+        context: ' 1. 1. one\n    2. two\n 2. second',
+      };
+      expect(output).toMatchObject(expectedOutput);
+    });
+
+    it('handles unordered lists', async () => {
+      const report = ActivityReport.build({
+        context: `
+        <ul>
+          <li>first</li>
+          <li>second</li>
+        </ul>
+        `,
+      });
+      const output = await activityReportToCsvRecord(report);
+      const expectedOutput = {
+        context: ' * first\n * second',
+      };
+      expect(output).toMatchObject(expectedOutput);
+    });
+
+    it('handles tables', async () => {
+      const report = ActivityReport.build({
+        context: `
+        <table>
+          <thead>
+            <tr>
+              <td>First</td>
+              <td>Second</td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>One</td>
+              <td>Two</td>
+            </tr>
+            <tr>
+              <td>Three</td>
+              <td>Four</td>
+            </tr>
+          </tbody>
+        </table>
+        `,
+      });
+      const output = await activityReportToCsvRecord(report);
+      const expectedOutput = {
+        context: 'First   Second\nOne     Two\nThree   Four',
+      };
+      expect(output).toMatchObject(expectedOutput);
+    });
+  });
+
   it('transforms related models into string values', async () => {
     const report = await ActivityReport.build(mockReport, {
-      include: [{ model: User, as: 'author' }, { model: User, as: 'lastUpdatedBy' }, { model: User, as: 'collaborators' }],
+      include: [{ model: User, as: 'author' },
+        { model: User, as: 'lastUpdatedBy' },
+        {
+          model: ActivityReportCollaborator,
+          as: 'activityReportCollaborators',
+          include: [{
+            model: User,
+            as: 'user',
+            attributes: ['id', 'name', 'role', 'fullName'],
+          }],
+        },
+        {
+          model: ActivityRecipient,
+          as: 'activityRecipients',
+          include: [{ model: Grant, as: 'grant', include: [{ model: Recipient, as: 'recipient' }] }],
+        },
+        {
+          model: ActivityReportApprover,
+          as: 'approvers',
+          include: [{ model: User }],
+        }],
     });
     const output = await activityReportToCsvRecord(report);
-    const { author, lastUpdatedBy, collaborators } = output;
-    expect(author).toEqual('Arthur, GS');
+    const {
+      creatorName, lastUpdatedBy, collaborators, programSpecialistName, approvers, recipientInfo,
+    } = output;
+    expect(creatorName).toEqual('Arthur, GS');
     expect(lastUpdatedBy).toEqual('Arthur');
     expect(collaborators).toEqual('Collaborator 1, GS, HS\nCollaborator 2');
+    expect(programSpecialistName).toEqual('Program Specialist 1\nProgram Specialist 2\nProgram Specialist 4');
+    expect(approvers).toEqual('Test Approver 1\nTest Approver 2\nTest Approver 3');
+    expect(recipientInfo).toEqual('test1 - grant number 1 - 1\ntest2 - grant number 2 - 2\ntest3 - grant number 3 - 3\ntest4 - grant number 4 - 4');
   });
 
   it('transforms goals and objectives into many values', async () => {

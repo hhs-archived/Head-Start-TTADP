@@ -1,152 +1,43 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import React, {
-  useState, useEffect, useContext,
+  useState,
+  useEffect,
+  useContext,
+  useMemo,
+  useRef,
 } from 'react';
-import PropTypes from 'prop-types';
 import {
-  Tag, Table, Alert, Grid, Button, Checkbox,
+  Alert, Grid, Button,
 } from '@trussworks/react-uswds';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTimesCircle } from '@fortawesome/free-solid-svg-icons';
 import { Helmet } from 'react-helmet';
+import { v4 as uuidv4 } from 'uuid';
 import { Link, useHistory } from 'react-router-dom';
-
-import Pagination from 'react-js-pagination';
-
 import AriaLiveContext from '../../AriaLiveContext';
-import ContextMenu from '../../components/ContextMenu';
-import Container from '../../components/Container';
-import { getReports, getReportAlerts } from '../../fetchers/activityReports';
-import { getReportsDownloadURL, getAllReportsDownloadURL, getAllAlertsDownloadURL } from '../../fetchers/helpers';
+import UserContext from '../../UserContext';
+import { getReportAlerts, downloadReports } from '../../fetchers/activityReports';
+import { getAllAlertsDownloadURL } from '../../fetchers/helpers';
 import NewReport from './NewReport';
-import 'uswds/dist/css/uswds.css';
-import '@trussworks/react-uswds/lib/index.css';
 import './index.css';
 import MyAlerts from './MyAlerts';
 import { hasReadWrite, allRegionsUserHasPermissionTo } from '../../permissions';
-import { REPORTS_PER_PAGE, ALERTS_PER_PAGE } from '../../Constants';
-import Filter, { filtersToQueryString } from './Filter';
-import ReportMenu from './ReportMenu';
+import { ALERTS_PER_PAGE } from '../../Constants';
+import { filtersToQueryString, expandFilters, formatDateRange } from '../../utils';
 import Overview from '../../widgets/Overview';
-import RegionalSelect from '../../components/RegionalSelect';
 import './TouchPoints.css';
-import TooltipWithCollection from '../../components/TooltipWithCollection';
+import ActivityReportsTable from '../../components/ActivityReportsTable';
+import FilterPanel from '../../components/filter/FilterPanel';
+import useSessionFiltersAndReflectInUrl from '../../hooks/useSessionFiltersAndReflectInUrl';
+import { LANDING_BASE_FILTER_CONFIG, LANDING_FILTER_CONFIG_WITH_REGIONS } from './constants';
+import FilterContext from '../../FilterContext';
 
-function renderReports(reports, history, reportCheckboxes, handleReportSelect) {
-  const emptyReport = {
-    id: '',
-    displayId: '',
-    activityRecipients: [],
-    startDate: '',
-    author: '',
-    topics: [],
-    collaborators: [],
-    lastSaved: '',
-    calculatedStatus: '',
-  };
+const defaultDate = formatDateRange({
+  lastThirtyDays: true,
+  forDateTime: true,
+});
 
-  const displayReports = reports.length ? reports : [emptyReport];
-
-  return displayReports.map((report, index, { length }) => {
-    const {
-      id,
-      displayId,
-      activityRecipients,
-      startDate,
-      author,
-      topics,
-      collaborators,
-      lastSaved,
-      calculatedStatus,
-      legacyId,
-    } = report;
-
-    const authorName = author ? author.fullName : '';
-
-    const recipients = activityRecipients && activityRecipients.map((ar) => (
-      ar.grant ? ar.grant.grantee.name : ar.name
-    ));
-
-    const collaboratorNames = collaborators && collaborators.map((collaborator) => (
-      collaborator.fullName));
-
-    const viewOrEditLink = calculatedStatus === 'approved' ? `/activity-reports/view/${id}` : `/activity-reports/${id}`;
-
-    const linkTarget = legacyId ? `/activity-reports/legacy/${legacyId}` : viewOrEditLink;
-
-    const menuItems = [
-      {
-        label: 'View',
-        onClick: () => { history.push(linkTarget); },
-      },
-    ];
-
-    if (navigator.clipboard) {
-      menuItems.push({
-        label: 'Copy URL',
-        onClick: async () => {
-          await navigator.clipboard.writeText(`${window.location.origin}${linkTarget}`);
-        },
-      });
-    }
-
-    if (!legacyId) {
-      const downloadMenuItem = {
-        label: 'Download',
-        onClick: () => {
-          const downloadURL = getReportsDownloadURL([id]);
-          window.location.assign(downloadURL);
-        },
-      };
-      menuItems.push(downloadMenuItem);
-    }
-
-    const contextMenuLabel = `Actions for activity report ${displayId}`;
-
-    const selectId = `report-${id}`;
-    const isChecked = reportCheckboxes[id] || false;
-    return (
-      <tr key={`landing_${id}`}>
-        <td className="width-8">
-          <Checkbox id={selectId} label="" value={id} checked={isChecked} onChange={handleReportSelect} aria-label={`Select ${displayId}`} />
-        </td>
-        <th scope="row" className="smart-hub--blue">
-          <Link
-            to={linkTarget}
-          >
-            {displayId}
-          </Link>
-        </th>
-        <td>
-          <TooltipWithCollection collection={recipients} collectionTitle={`recipients for ${displayId}`} />
-        </td>
-        <td>{startDate}</td>
-        <td>
-          <span className="smart-hub--ellipsis" title={authorName}>
-            {authorName}
-          </span>
-        </td>
-        <td>
-          <TooltipWithCollection collection={topics} collectionTitle={`topics for ${displayId}`} />
-        </td>
-        <td>
-          <TooltipWithCollection collection={collaboratorNames} collectionTitle={`collaborators for ${displayId}`} />
-        </td>
-        <td>{lastSaved}</td>
-        <td>
-          <Tag
-            className={`smart-hub--table-tag-status smart-hub--status-${calculatedStatus}`}
-          >
-            {calculatedStatus === 'needs_action' ? 'Needs action' : calculatedStatus}
-          </Tag>
-        </td>
-        <td>
-          <ContextMenu label={contextMenuLabel} menuItems={menuItems} up={index + 1 === length} />
-        </td>
-      </tr>
-    );
-  });
-}
+const FILTER_KEY = 'landing-filters';
 
 export function renderTotal(offset, perPage, activePage, reportsCount) {
   const from = offset >= reportsCount ? 0 : offset + 1;
@@ -160,23 +51,44 @@ export function renderTotal(offset, perPage, activePage, reportsCount) {
   return `${from}-${to} of ${reportsCount}`;
 }
 
-function Landing({ user }) {
+function Landing() {
+  const { user } = useContext(UserContext);
+
+  // Determine Default Region.
   const regions = allRegionsUserHasPermissionTo(user);
+  const defaultRegion = user.homeRegionId || regions[0] || 0;
+  const hasMultipleRegions = regions && regions.length > 1;
+
+  const [filters, setFilters] = useSessionFiltersAndReflectInUrl(
+    FILTER_KEY,
+    defaultRegion !== 14
+      && defaultRegion !== 0
+      && hasMultipleRegions
+      ? [{
+        id: uuidv4(),
+        topic: 'region',
+        condition: 'is',
+        query: defaultRegion,
+      },
+      {
+        id: uuidv4(),
+        topic: 'startDate',
+        condition: 'is within',
+        query: defaultDate,
+      }]
+      : [{
+        id: uuidv4(),
+        topic: 'startDate',
+        condition: 'is within',
+        query: defaultDate,
+      }],
+  );
+
   const history = useHistory();
-  const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(true);
-  const [reports, updateReports] = useState([]);
   const [reportAlerts, updateReportAlerts] = useState([]);
   const [error, updateError] = useState();
   const [showAlert, updateShowAlert] = useState(true);
-  const [sortConfig, setSortConfig] = React.useState({
-    sortBy: 'updatedAt',
-    direction: 'desc',
-  });
-  const [offset, setOffset] = useState(0);
-  const [perPage] = useState(REPORTS_PER_PAGE);
-  const [activePage, setActivePage] = useState(1);
-  const [reportsCount, setReportsCount] = useState(0);
 
   const [alertsSortConfig, setAlertsSortConfig] = React.useState({
     sortBy: 'startDate',
@@ -186,60 +98,21 @@ function Landing({ user }) {
   const [alertsPerPage] = useState(ALERTS_PER_PAGE);
   const [alertsActivePage, setAlertsActivePage] = useState(1);
   const [alertReportsCount, setAlertReportsCount] = useState(0);
-  const [filters, setFilters] = useState([]);
-  const [alertFilters, setAlertFilters] = useState([]);
+  const [isDownloadingAlerts, setIsDownloadingAlerts] = useState(false);
+  const [downloadAlertsError, setDownloadAlertsError] = useState('');
+  const downloadAllAlertsButtonRef = useRef();
 
-  const defaultRegion = regions[0] || user.homeRegionId || 0;
+  function getAppliedRegion() {
+    const regionFilters = filters.filter((f) => f.topic === 'region').map((r) => r.query);
+    if (regionFilters && regionFilters.length > 0) {
+      return regionFilters[0];
+    }
+    return null;
+  }
 
-  const [
-    appliedRegion,
-    updateAppliedRegion,
-  ] = useState(user.homeRegionId === 14 ? 14 : defaultRegion);
+  const appliedRegionNumber = getAppliedRegion();
 
-  const [reportCheckboxes, setReportCheckboxes] = useState({});
-  const [allReportsChecked, setAllReportsChecked] = useState(false);
-  const [regionLabel, setRegionLabel] = useState('');
   const ariaLiveContext = useContext(AriaLiveContext);
-
-  const makeReportCheckboxes = (reportsArr, checked) => (
-    reportsArr.reduce((obj, r) => ({ ...obj, [r.id]: checked }), {})
-  );
-
-  // The all-reports checkbox can select/deselect all visible reports
-  const toggleSelectAll = (event) => {
-    const { target: { checked = null } = {} } = event;
-
-    if (checked === true) {
-      setReportCheckboxes(makeReportCheckboxes(reports, true));
-      setAllReportsChecked(true);
-    } else {
-      setReportCheckboxes(makeReportCheckboxes(reports, false));
-      setAllReportsChecked(false);
-    }
-  };
-
-  const handleReportSelect = (event) => {
-    const { target: { checked = null, value = null } = {} } = event;
-    if (checked === true) {
-      setReportCheckboxes({ ...reportCheckboxes, [value]: true });
-    } else {
-      setReportCheckboxes({ ...reportCheckboxes, [value]: false });
-    }
-  };
-
-  const requestSort = (sortBy) => {
-    let direction = 'asc';
-    if (
-      sortConfig
-      && sortConfig.sortBy === sortBy
-      && sortConfig.direction === 'asc'
-    ) {
-      direction = 'desc';
-    }
-    setActivePage(1);
-    setOffset(0);
-    setSortConfig({ sortBy, direction });
-  };
 
   const requestAlertsSort = (sortBy) => {
     let direction = 'asc';
@@ -255,51 +128,30 @@ function Landing({ user }) {
     setAlertsSortConfig({ sortBy, direction });
   };
 
-  const onApplyRegion = (region) => {
-    const regionId = region ? region.value : appliedRegion;
-    updateAppliedRegion(regionId);
-  };
+  const handleDownloadAllAlerts = async () => {
+    const filterQuery = filtersToQueryString(filters);
+    const downloadURL = getAllAlertsDownloadURL(filterQuery);
 
-  // Update ariaLiveContext outside of effects to avoid infinite re-renders and
-  // the initial "0 filters applied" on first render
-  const handleApplyFilters = (newFilters) => {
-    setFilters(newFilters);
-    ariaLiveContext.announce(`${newFilters.length} filter${newFilters.length !== 1 ? 's' : ''} applied to reports`);
-  };
-
-  const handleApplyAlertFilters = (newFilters) => {
-    setAlertFilters(newFilters);
-    ariaLiveContext.announce(`${newFilters.length} filter${newFilters.length !== 1 ? 's' : ''} applied to my alerts`);
-  };
-
-  useEffect(() => {
-    async function fetchReports() {
-      setLoading(true);
-      const filterQuery = filtersToQueryString(filters, appliedRegion);
-      try {
-        const { count, rows } = await getReports(
-          sortConfig.sortBy,
-          sortConfig.direction,
-          offset,
-          perPage,
-          filterQuery,
-        );
-        updateReports(rows);
-        setReportsCount(count || 0);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.log(e);
-        updateError('Unable to fetch reports');
-      }
-      setLoading(false);
+    try {
+      setIsDownloadingAlerts(true);
+      const blob = await downloadReports(downloadURL);
+      const csv = URL.createObjectURL(blob);
+      window.location.assign(csv);
+    } catch (e) {
+      setDownloadAlertsError(true);
+    } finally {
+      setIsDownloadingAlerts(false);
+      downloadAllAlertsButtonRef.current.focus();
     }
-    fetchReports();
-  }, [sortConfig, offset, perPage, filters, appliedRegion]);
+  };
+
+  const filtersToApply = useMemo(() => expandFilters(filters), [filters]);
 
   useEffect(() => {
     async function fetchAlertReports() {
       setAlertsLoading(true);
-      const filterQuery = filtersToQueryString(alertFilters, appliedRegion);
+      // Filters passed also contains region.
+      const filterQuery = filtersToQueryString(filtersToApply);
       try {
         const { alertsCount, alerts } = await getReportAlerts(
           alertsSortConfig.sortBy,
@@ -312,7 +164,7 @@ function Landing({ user }) {
         if (alertsCount) {
           setAlertReportsCount(alertsCount);
         }
-        setAllReportsChecked(false);
+        updateError('');
       } catch (e) {
         // eslint-disable-next-line no-console
         console.log(e);
@@ -321,96 +173,7 @@ function Landing({ user }) {
       setAlertsLoading(false);
     }
     fetchAlertReports();
-  }, [alertsSortConfig, alertsOffset, alertsPerPage, alertFilters, appliedRegion]);
-
-  // When reports are updated, make sure all checkboxes are unchecked
-  useEffect(() => {
-    setReportCheckboxes(makeReportCheckboxes(reports, false));
-  }, [reports]);
-
-  useEffect(() => {
-    setRegionLabel(appliedRegion === 14 ? 'All' : appliedRegion.toString());
-  }, [appliedRegion]);
-
-  useEffect(() => {
-    const checkValues = Object.values(reportCheckboxes);
-    if (checkValues.every((v) => v === true)) {
-      setAllReportsChecked(true);
-    } else if (allReportsChecked === true) {
-      setAllReportsChecked(false);
-    }
-  }, [reportCheckboxes, allReportsChecked]);
-
-  const handleDownloadClick = () => {
-    const toDownloadableReportIds = (accumulator, entry) => {
-      if (!reports) return accumulator;
-      const [key, value] = entry;
-      if (value === false) return accumulator;
-      accumulator.push(key);
-      return accumulator;
-    };
-
-    const downloadable = Object.entries(reportCheckboxes).reduce(toDownloadableReportIds, []);
-    if (downloadable.length) {
-      const downloadURL = getReportsDownloadURL(downloadable);
-      window.location.assign(downloadURL);
-    }
-  };
-
-  const handleDownloadAllReports = () => {
-    const filterQuery = filtersToQueryString(filters, appliedRegion);
-    const downloadURL = getAllReportsDownloadURL(filterQuery);
-    window.location.assign(downloadURL);
-  };
-
-  const handleDownloadAllAlerts = () => {
-    const filterQuery = filtersToQueryString(alertFilters, appliedRegion);
-    const downloadURL = getAllAlertsDownloadURL(filterQuery);
-    window.location.assign(downloadURL);
-  };
-
-  const getClassNamesFor = (name) => (sortConfig.sortBy === name ? sortConfig.direction : '');
-  const numberOfSelectedReports = Object.values(reportCheckboxes).filter((c) => c).length;
-
-  const renderColumnHeader = (displayName, name) => {
-    const sortClassName = getClassNamesFor(name);
-    let fullAriaSort;
-    switch (sortClassName) {
-      case 'asc':
-        fullAriaSort = 'ascending';
-        break;
-      case 'desc':
-        fullAriaSort = 'descending';
-        break;
-      default:
-        fullAriaSort = 'none';
-        break;
-    }
-    return (
-      <th scope="col" aria-sort={fullAriaSort}>
-        <a
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            requestSort(name);
-          }}
-          onKeyPress={() => requestSort(name)}
-          className={`sortable ${sortClassName}`}
-          aria-label={`${displayName}. Activate to sort ${sortClassName === 'asc' ? 'descending' : 'ascending'
-          }`}
-        >
-          {displayName}
-        </a>
-      </th>
-    );
-  };
-
-  const handlePageChange = (pageNumber) => {
-    if (!loading) {
-      setActivePage(pageNumber);
-      setOffset((pageNumber - 1) * perPage);
-    }
-  };
+  }, [alertsSortConfig, alertsOffset, alertsPerPage, filtersToApply]);
 
   let msg;
   const message = history.location.state && history.location.state.message;
@@ -433,6 +196,50 @@ function Landing({ user }) {
       </>
     );
   }
+
+  const regionLabel = () => {
+    if (defaultRegion === 14) {
+      return 'All regions';
+    }
+    if (defaultRegion > 0) {
+      return `Region ${defaultRegion.toString()}`;
+    }
+    return '';
+  };
+
+  // Apply filters.
+  const onApply = (newFilters) => {
+    setFilters([
+      ...newFilters,
+    ]);
+    ariaLiveContext.announce(`${newFilters.length} filter${newFilters.length !== 1 ? 's' : ''} applied to reports`);
+  };
+
+  // Remove Filters.
+  const onRemoveFilter = (id) => {
+    const newFilters = [...filters];
+    const index = newFilters.findIndex((item) => item.id === id);
+    if (index !== -1) {
+      newFilters.splice(index, 1);
+      setFilters(newFilters);
+    }
+  };
+
+  const dateRangeOptions = [
+    {
+      label: 'Last 30 days',
+      value: 1,
+      range: formatDateRange({ lastThirtyDays: true, forDateTime: true }),
+    },
+    {
+      label: 'Custom date range',
+      value: 2,
+      range: '',
+    },
+  ];
+
+  const filterConfig = hasMultipleRegions
+    ? LANDING_FILTER_CONFIG_WITH_REGIONS : LANDING_BASE_FILTER_CONFIG;
 
   return (
     <>
@@ -463,35 +270,32 @@ function Landing({ user }) {
         )}
         <Grid row gap>
           <Grid>
-            <h1 className="landing">Activity Reports</h1>
+            <h1 className="landing">{`Activity reports - ${regionLabel()}`}</h1>
           </Grid>
-          <Grid col={2} className="flex-align-self-center">
-            {regions.length > 1
-              && (
-                <RegionalSelect
-                  regions={allRegionsUserHasPermissionTo(user)}
-                  onApply={onApplyRegion}
-                  appliedRegion={appliedRegion}
-                  hasCentralOffice={user.homeRegionId === 14}
-                />
-              )}
-          </Grid>
-          <Grid className="flex-align-self-center">
+          <Grid className="grid-col-2 flex-align-self-center">
             {reportAlerts
               && reportAlerts.length > 0
               && hasReadWrite(user)
-              && appliedRegion !== 14
+              && appliedRegionNumber !== 14
               && <NewReport />}
+          </Grid>
+          <Grid col={12} className="display-flex flex-wrap margin-bottom-2">
+            <FilterPanel
+              applyButtonAria="apply filters for activity reports"
+              filters={filters}
+              onApplyFilters={onApply}
+              dateRangeOptions={dateRangeOptions}
+              onRemoveFilter={onRemoveFilter}
+              filterConfig={filterConfig}
+            />
           </Grid>
         </Grid>
         <Grid row gap className="smart-hub--overview">
           <Grid col={10}>
             <Overview
-              filters={filters}
-              region={appliedRegion}
-              allRegions={regions}
-              skipLoading
               regionLabel={regionLabel}
+              tableCaption="TTA overview"
+              filters={filtersToApply}
             />
           </Grid>
         </Grid>
@@ -512,125 +316,25 @@ function Landing({ user }) {
           alertsActivePage={alertsActivePage}
           alertReportsCount={alertReportsCount}
           sortHandler={requestAlertsSort}
-          updateReportFilters={handleApplyAlertFilters}
-          hasFilters={alertFilters.length > 0}
           updateReportAlerts={updateReportAlerts}
           setAlertReportsCount={setAlertReportsCount}
           handleDownloadAllAlerts={handleDownloadAllAlerts}
           message={message}
+          isDownloadingAlerts={isDownloadingAlerts}
+          downloadAlertsError={downloadAlertsError}
+          setDownloadAlertsError={setDownloadAlertsError}
+          downloadAllAlertsButtonRef={downloadAllAlertsButtonRef}
         />
-        <Container className="landing inline-size maxw-full" padding={0} loading={loading} loadingLabel="Activity reports table loading">
-          <span className="smart-hub--table-controls display-flex flex-row flex-align-center">
-            {numberOfSelectedReports > 0
-              && (
-                <span className="padding-y-05 padding-left-105 padding-right-1 text-white smart-hub-bg-vivid radius-pill font-sans-xs text-middle margin-right-1 smart-hub--selected-tag">
-                  {numberOfSelectedReports}
-                  {' '}
-                  selected
-                  {' '}
-                  <Button
-                    className="smart-hub--select-tag__button"
-                    unstyled
-                    aria-label="deselect all reports"
-                    onClick={() => {
-                      toggleSelectAll({ target: { checked: false } });
-                    }}
-                  >
-                    <FontAwesomeIcon
-                      color="blue"
-                      inverse
-                      icon={faTimesCircle}
-                    />
-                  </Button>
-                </span>
-              )}
-            <Filter applyFilters={handleApplyFilters} />
-            <ReportMenu
-              hasSelectedReports={numberOfSelectedReports > 0}
-              onExportAll={handleDownloadAllReports}
-              onExportSelected={handleDownloadClick}
-            />
-          </span>
-          <span className="smart-hub--table-nav">
-            <span aria-label="Pagination for activity reports">
-              <span
-                className="smart-hub--total-count"
-                aria-label={`Page ${activePage}, displaying rows ${renderTotal(
-                  offset,
-                  perPage,
-                  activePage,
-                  reportsCount,
-                )}`}
-              >
-                {renderTotal(offset, perPage, activePage, reportsCount)}
-                <Pagination
-                  hideFirstLastPages
-                  prevPageText="<Prev"
-                  nextPageText="Next>"
-                  activePage={activePage}
-                  itemsCountPerPage={perPage}
-                  totalItemsCount={reportsCount}
-                  pageRangeDisplayed={4}
-                  onChange={handlePageChange}
-                  linkClassPrev="smart-hub--link-prev"
-                  linkClassNext="smart-hub--link-next"
-                  tabIndex={0}
-                />
-              </span>
-            </span>
-          </span>
-          <div className="usa-table-container--scrollable">
-            <Table className="usa-table usa-table--borderless usa-table--striped" fullWidth>
-              <caption>
-                {`Region ${regionLabel} Activity reports`}
-                <p className="usa-sr-only">with sorting and pagination</p>
-              </caption>
-              <thead>
-                <tr>
-                  <th className="width-8" aria-label="Select">
-                    <Checkbox
-                      id="all-reports"
-                      label=""
-                      onChange={toggleSelectAll}
-                      checked={allReportsChecked}
-                      aria-label="Select or de-select all reports"
-                    />
-                  </th>
-                  {renderColumnHeader('Report ID', 'regionId')}
-                  {renderColumnHeader('Grantee', 'activityRecipients')}
-                  {renderColumnHeader('Start date', 'startDate')}
-                  {renderColumnHeader('Creator', 'author')}
-                  {renderColumnHeader('Topic(s)', 'topics')}
-                  {renderColumnHeader('Collaborator(s)', 'collaborators')}
-                  {renderColumnHeader('Last saved', 'updatedAt')}
-                  {renderColumnHeader('Status', 'calculatedStatus')}
-                  <th scope="col" aria-label="context menu" />
-                </tr>
-              </thead>
-              <tbody>
-                {renderReports(
-                  reports,
-                  history,
-                  reportCheckboxes,
-                  handleReportSelect,
-                )}
-              </tbody>
-            </Table>
-          </div>
-        </Container>
+        <FilterContext.Provider value={{ filterKey: FILTER_KEY }}>
+          <ActivityReportsTable
+            filters={filtersToApply}
+            showFilter={false}
+            tableCaption="Approved activity reports"
+          />
+        </FilterContext.Provider>
       </>
     </>
   );
 }
-
-Landing.propTypes = {
-  user: PropTypes.shape({
-    homeRegionId: PropTypes.number,
-    permissions: PropTypes.arrayOf(PropTypes.shape({
-      regionId: PropTypes.number.isRequired,
-      scopeId: PropTypes.number.isRequired,
-    })),
-  }).isRequired,
-};
 
 export default Landing;

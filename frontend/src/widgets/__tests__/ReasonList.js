@@ -24,14 +24,6 @@ describe('Reason List Widget', () => {
     expect(screen.getByRole('columnheader', { name: /# of activities/i })).toBeInTheDocument();
   });
 
-  it('renders error correctly', async () => {
-    const data = [];
-    const dateRange = '2021/07/01-2021/04/01';
-    const errorOverride = true;
-    renderReasonList({ data, dateRange, errorOverride });
-    expect(await screen.findByText(/errors set to always show/i)).toBeInTheDocument();
-  });
-
   it('renders correctly with data', async () => {
     const data = [
       { name: 'reason one', count: 4 },
@@ -59,7 +51,7 @@ describe('Reason List Widget', () => {
       { name: 'reason seven', count: 4 },
       { name: 'reason 8', count: 3 },
       { name: 'reason 9', count: 2 },
-      { name: 'reason 10 is a very very very long reason and should not cut off the text', count: 999999 },
+      { name: 'reason 10 is a very very very long reason and should not cut off the text', count: '999,999' },
     ];
     renderReasonList({ data });
 

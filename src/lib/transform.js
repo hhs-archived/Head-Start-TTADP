@@ -1,3 +1,24 @@
+import moment from 'moment';
+import { convert } from 'html-to-text';
+import { DATE_FORMAT } from '../constants';
+
+function transformDate(field) {
+  function transformer(instance) {
+    let value = '';
+    const date = instance[field];
+    if (date) {
+      value = moment(date).format(DATE_FORMAT);
+    }
+    const obj = {};
+    Object.defineProperty(obj, field, {
+      value,
+      enumerable: true,
+    });
+    return obj;
+  }
+  return transformer;
+}
+
 /**
  * @param {string} field name to be retrieved
  * @returns {function} Function that will return a simple value wrapped in a Promise
@@ -13,7 +34,7 @@ function transformSimpleValue(instance, field) {
     value,
     enumerable: true,
   });
-  return Promise.resolve(obj);
+  return obj;
 }
 
 /*
@@ -23,9 +44,9 @@ function transformSimpleValue(instance, field) {
  * @returns {function} A function that will perform the transformation
  */
 function transformRelatedModel(field, prop) {
-  async function transformer(instance) {
+  function transformer(instance) {
     const obj = {};
-    let records = await instance[field];
+    let records = instance[field];
     if (records) {
       if (!Array.isArray(records)) {
         records = [records];
@@ -37,14 +58,93 @@ function transformRelatedModel(field, prop) {
         enumerable: true,
       });
     }
-    return Promise.resolve(obj);
+    return obj;
+  }
+  return transformer;
+}
+
+function transformCollaborators(joinTable, table, field, fieldName) {
+  function transformer(instance) {
+    const obj = {};
+    let records = instance[joinTable];
+    if (records) {
+      if (!Array.isArray(records)) {
+        records = [records];
+      }
+      const value = records.map((r) => r[table][field]).sort().join('\n');
+      Object.defineProperty(obj, fieldName, {
+        value,
+        enumerable: true,
+      });
+    }
+    return obj;
+  }
+  return transformer;
+}
+
+function transformHTML(field) {
+  function transformer(instance) {
+    const html = instance[field] || '';
+    const value = convert(html, { selectors: [{ selector: 'table', format: 'dataTable' }] });
+    const obj = {};
+    Object.defineProperty(obj, field, {
+      value,
+      enumerable: true,
+    });
+    return obj;
+  }
+  return transformer;
+}
+
+function transformApproversModel(prop) {
+  function transformer(instance) {
+    const obj = {};
+    const values = instance.approvers;
+    if (values) {
+      const distinctValues = [
+        ...new Set(
+          values.filter(
+            (approver) => approver.User && approver.User[prop] !== null,
+          ).map((r) => r.User[prop]).flat(),
+        ),
+      ];
+      const approversList = distinctValues.sort().join('\n');
+      Object.defineProperty(obj, 'approvers', {
+        value: approversList,
+        enumerable: true,
+      });
+    }
+    return obj;
+  }
+  return transformer;
+}
+
+function transformGrantModel(prop) {
+  function transformer(instance) {
+    const obj = {};
+    const values = instance.activityRecipients;
+    if (values) {
+      const distinctValues = [
+        ...new Set(
+          values.filter(
+            (recipient) => recipient.grant && recipient.grant[prop] !== null,
+          ).map((r) => r.grant[prop]).flat(),
+        ),
+      ];
+      const grantValueList = distinctValues.sort().join('\n');
+      Object.defineProperty(obj, prop, {
+        value: grantValueList,
+        enumerable: true,
+      });
+    }
+    return obj;
   }
   return transformer;
 }
 
 /*
- * Helper function for transformGoalsAndObjectives
- */
+   * Helper function for transformGoalsAndObjectives
+   */
 function sortObjectives(a, b) {
   if (!b.goal || !a.goal) {
     return 1;
@@ -59,9 +159,9 @@ function sortObjectives(a, b) {
 }
 
 /*
- * Create an object with goals and objectives. Used by transformGoalsAndObjectives
- * @param {Array<Objectives>} objectiveRecords
- */
+   * Create an object with goals and objectives. Used by transformGoalsAndObjectives
+   * @param {Array<Objectives>} objectiveRecords
+   */
 function makeGoalsAndObjectivesObject(objectiveRecords) {
   objectiveRecords.sort(sortObjectives);
   let objectiveNum = 0;
@@ -95,7 +195,7 @@ function makeGoalsAndObjectivesObject(objectiveRecords) {
     // same with objective num
 
     /**
-     * this will start non-grantee objectives at 1.1, which will prevent the creation
+     * this will start other entity objectives at 1.1, which will prevent the creation
      * of columns that don't fit the current schema (for example, objective-1.0)
      */
     if (!objectiveNum) {
@@ -113,7 +213,7 @@ function makeGoalsAndObjectivesObject(objectiveRecords) {
       enumerable: true,
     });
     Object.defineProperty(accum, `objective-${objectiveId}-ttaProvided`, {
-      value: ttaProvided,
+      value: convert(ttaProvided),
       enumerable: true,
     });
     objectiveNum += 1;
@@ -123,16 +223,18 @@ function makeGoalsAndObjectivesObject(objectiveRecords) {
 }
 
 /*
- * Transform goals and objectives into a format suitable for a CSV
- * @param {ActivityReport} ActivityReport instance
- * @returns {Promise<object>} Object with key-values for goals and objectives
- */
-async function transformGoalsAndObjectives(report) {
+* Transform goals and objectives into a format suitable for a CSV
+* @param {ActivityReport} ActivityReport instance
+* @returns {Promise<object>} Object with key-values for goals and objectives
+*/
+function transformGoalsAndObjectives(report) {
   let obj = {};
-
-  const objectiveRecords = await report.objectives;
-  if (objectiveRecords) {
-    obj = makeGoalsAndObjectivesObject(objectiveRecords);
+  const { activityReportObjectives } = report;
+  if (activityReportObjectives) {
+    const objectiveRecords = activityReportObjectives.map((aro) => aro.objective);
+    if (objectiveRecords) {
+      obj = makeGoalsAndObjectivesObject(objectiveRecords);
+    }
   }
 
   return obj;
@@ -140,11 +242,11 @@ async function transformGoalsAndObjectives(report) {
 
 const arTransformers = [
   'displayId',
-  transformRelatedModel('author', 'fullName'),
+  'creatorName',
   transformRelatedModel('lastUpdatedBy', 'name'),
   'requester',
-  transformRelatedModel('collaborators', 'fullName'),
-  'programTypes',
+  transformCollaborators('activityReportCollaborators', 'user', 'fullName', 'collaborators'),
+  transformApproversModel('name'),
   'targetPopulations',
   'virtualDeliveryType',
   'reason',
@@ -157,27 +259,32 @@ const arTransformers = [
   'endDate',
   'startDate',
   transformRelatedModel('activityRecipients', 'name'),
+  transformGrantModel('programTypes'),
   'activityRecipientType',
   'ECLKCResourcesUsed',
   'nonECLKCResourcesUsed',
   transformRelatedModel('attachments', 'originalFileName'),
   transformGoalsAndObjectives,
-  transformRelatedModel('granteeNextSteps', 'note'),
+  transformRelatedModel('recipientNextSteps', 'note'),
   transformRelatedModel('specialistNextSteps', 'note'),
-  'context',
-  'additionalNotes',
+  transformHTML('context'),
+  transformHTML('additionalNotes'),
   'lastSaved',
+  transformDate('createdAt'),
+  transformDate('approvedAt'),
+  transformGrantModel('programSpecialistName'),
+  transformGrantModel('recipientInfo'),
 ];
 
 /**
- * csvRows is an array of objects representing csv data. Sometimes,
- * some objects can have keys that other objects will not.
- * We also want the goals and objectives to appear at the end
- * of the report. This extracts a list of all the goals and objectives.
- *
- * @param {object[]} csvRows
- * @returns object[]
- */
+   * csvRows is an array of objects representing csv data. Sometimes,
+   * some objects can have keys that other objects will not.
+   * We also want the goals and objectives to appear at the end
+   * of the report. This extracts a list of all the goals and objectives.
+   *
+   * @param {object[]} csvRows
+   * @returns object[]
+   */
 function extractListOfGoalsAndObjectives(csvRows) {
   // an empty array to hold our keys
   let keys = [];
@@ -229,7 +336,7 @@ function extractListOfGoalsAndObjectives(csvRows) {
   return goalsAndObjectives;
 }
 
-async function activityReportToCsvRecord(report, transformers = arTransformers) {
+function activityReportToCsvRecord(report, transformers = arTransformers) {
   const callFunctionOrValueGetter = (x) => {
     if (typeof x === 'function') {
       return x(report);
@@ -239,7 +346,7 @@ async function activityReportToCsvRecord(report, transformers = arTransformers) 
     }
     return {};
   };
-  const recordObjects = await Promise.all(transformers.map(callFunctionOrValueGetter));
+  const recordObjects = transformers.map(callFunctionOrValueGetter);
   const record = recordObjects.reduce((obj, value) => Object.assign(obj, value), {});
 
   return record;

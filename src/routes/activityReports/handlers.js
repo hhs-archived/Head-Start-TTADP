@@ -41,7 +41,7 @@ const logContext = {
   namespace,
 };
 
-export const LEGACY_WARNING = 'Reports done before March 1, 2021 may have blank fields. These were done in a SmartSheet, not the TTA Hub.';
+export const LEGACY_WARNING = 'Reports done before March 17, 2021 may have blank fields. These were done in a SmartSheet, not the TTA Hub.';
 
 async function sendActivityReportCSV(reports, res) {
   const csvRows = await Promise.all(reports.map((r) => activityReportToCsvRecord(r)));
@@ -67,7 +67,7 @@ async function sendActivityReportCSV(reports, res) {
           header: 'Report ID',
         },
         {
-          key: 'author',
+          key: 'creatorName',
           header: 'Creator',
         },
         {
@@ -75,20 +75,28 @@ async function sendActivityReportCSV(reports, res) {
           header: 'Collaborators',
         },
         {
+          key: 'approvers',
+          header: 'Approvers',
+        },
+        {
+          key: 'programSpecialistName',
+          header: 'Program Specialists',
+        },
+        {
           key: 'requester',
           header: 'Requester',
         },
         {
           key: 'activityRecipientType',
-          header: 'Grantee or non-grantee',
+          header: 'Recipient or other entity',
         },
         {
           key: 'activityRecipients',
-          header: 'Grantee name/non-grantee name',
+          header: 'Recipient name/other entity name',
         },
         {
           key: 'programTypes',
-          header: 'Program type',
+          header: 'Program types',
         },
         {
           key: 'reason',
@@ -161,12 +169,24 @@ async function sendActivityReportCSV(reports, res) {
           header: 'Specialist next steps',
         },
         {
-          key: 'granteeNextSteps',
-          header: 'Grantee next steps',
+          key: 'recipientNextSteps',
+          header: 'Recipient next steps',
+        },
+        {
+          key: 'createdAt',
+          header: 'Created date',
+        },
+        {
+          key: 'approvedAt',
+          header: 'Approved date',
         },
         {
           key: 'lastSaved',
           header: 'Last saved',
+        },
+        {
+          key: 'recipientInfo',
+          header: 'Recipient name - Grant number - Recipient ID',
         },
       ],
     };
@@ -181,7 +201,7 @@ async function sendActivityReportCSV(reports, res) {
   );
 
   res.attachment('activity-reports.csv');
-  res.send(`${warning}${csvData}`);
+  res.send(`\ufeff${warning}${csvData}`);
 }
 
 export async function updateLegacyFields(req, res) {
@@ -297,7 +317,7 @@ export async function reviewReport(req, res) {
     const reviewedReport = await activityReportById(activityReportId);
 
     if (reviewedReport.calculatedStatus === REPORT_STATUSES.APPROVED) {
-      if (reviewedReport.activityRecipientType === 'grantee') {
+      if (reviewedReport.activityRecipientType === 'recipient') {
         await copyGoalsToGrants(
           reviewedReport.goals,
           reviewedReport.activityRecipients.map((recipient) => recipient.activityRecipientId),
@@ -364,6 +384,35 @@ export async function softDeleteReport(req, res) {
 }
 
 /**
+ * Mark activity report submissionStatus as needs_action
+ *
+ * @param {*} req - request
+ * @param {*} res - response
+ */
+export async function unlockReport(req, res) {
+  try {
+    const { activityReportId } = req.params;
+    const report = await activityReportById(activityReportId);
+    const user = await userById(req.session.userId);
+    const authorization = new ActivityReport(user, report);
+    if (!authorization.canUnlock()) {
+      res.sendStatus(403);
+      return;
+    }
+
+    // Unlocking resets all Approving Managers to NEEDS_ACTION status.
+    await ActivityReportApprover.update({ status: APPROVER_STATUSES.NEEDS_ACTION }, {
+      where: { activityReportId },
+      individualHooks: true,
+    });
+
+    res.sendStatus(204);
+  } catch (error) {
+    await handleErrors(req, res, error, logContext);
+  }
+}
+
+/**
  * Submit a report to managers for approval
  * @param {*} req - request
  * @param {*} res - response
@@ -371,7 +420,7 @@ export async function softDeleteReport(req, res) {
 export async function submitReport(req, res) {
   try {
     const { activityReportId } = req.params;
-    const { approverUserIds, additionalNotes } = req.body;
+    const { approverUserIds, additionalNotes, creatorRole } = req.body;
 
     const user = await userById(req.session.userId);
     const report = await activityReportById(activityReportId);
@@ -385,6 +434,7 @@ export async function submitReport(req, res) {
     // Update Activity Report notes and submissionStatus
     const savedReport = await createOrUpdate({
       additionalNotes,
+      creatorRole,
       submissionStatus: REPORT_STATUSES.SUBMITTED,
     }, report);
 
@@ -463,7 +513,7 @@ export async function getReport(req, res) {
  * @param {*} res - response
  */
 export async function getReports(req, res) {
-  const query = await setReadRegions(req.query, req.session.userId, true);
+  const query = await setReadRegions(req.query, req.session.userId);
   const reportsWithCount = await activityReports(query);
   if (!reportsWithCount) {
     res.sendStatus(404);
@@ -581,19 +631,19 @@ export async function downloadReports(req, res) {
   try {
     const readRegions = await getUserReadRegions(req.session.userId);
 
-    const reportsWithCount = await getDownloadableActivityReportsByIds(
+    const reports = await getDownloadableActivityReportsByIds(
       readRegions,
       req.query,
     );
 
     const { format = 'json' } = req.query || {};
 
-    if (!reportsWithCount) {
+    if (!reports) {
       res.sendStatus(404);
     } else if (format === 'csv') {
-      await sendActivityReportCSV(reportsWithCount.rows, res);
+      await sendActivityReportCSV(reports, res);
     } else {
-      res.json(reportsWithCount);
+      res.json(reports);
     }
   } catch (error) {
     await handleErrors(req, res, error, logContext);
@@ -604,13 +654,12 @@ export async function downloadAllReports(req, res) {
   try {
     const readRegions = await setReadRegions(req.query, req.session.userId);
 
-    const reportsWithCount = await getAllDownloadableActivityReports(
+    const reports = await getAllDownloadableActivityReports(
       readRegions['region.in'],
       { ...readRegions, limit: null },
     );
 
-    const rows = reportsWithCount ? reportsWithCount.rows : [];
-    await sendActivityReportCSV(rows, res);
+    await sendActivityReportCSV(reports, res);
   } catch (error) {
     await handleErrors(req, res, error, logContext);
   }
@@ -620,9 +669,7 @@ export async function downloadAllAlerts(req, res) {
   try {
     const { userId } = req.session;
     const query = await setReadRegions(req.query, userId);
-    const alertsWithCount = await getAllDownloadableActivityReportAlerts(userId, query);
-
-    const rows = alertsWithCount ? alertsWithCount.rows : [];
+    const rows = await getAllDownloadableActivityReportAlerts(userId, query);
 
     await sendActivityReportCSV(rows, res);
   } catch (error) {

@@ -4,39 +4,9 @@ import Plotly from 'plotly.js-basic-dist';
 import { Grid } from '@trussworks/react-uswds';
 import withWidgetData from './withWidgetData';
 import Container from '../components/Container';
-import DateTime from '../components/DateTime';
 import AccessibleWidgetData from './AccessibleWidgetData';
 import './TopicFrequencyGraph.css';
 import ButtonSelect from '../components/ButtonSelect';
-import CheckboxSelect from '../components/CheckboxSelect';
-
-export const ROLES_MAP = [
-  {
-    selectValue: 1,
-    value: 'Early Childhood Specialist',
-    label: 'Early Childhood Specialist (ECS)',
-  },
-  {
-    selectValue: 2,
-    value: 'Family Engagement Specialist',
-    label: 'Family Engagement Specialist (FES)',
-  },
-  {
-    selectValue: 3,
-    value: 'Grantee Specialist',
-    label: 'Grantee Specialist (GS)',
-  },
-  {
-    selectValue: 4,
-    value: 'Health Specialist',
-    label: 'Health Specialist (HS)',
-  },
-  {
-    selectValue: 5,
-    value: 'System Specialist',
-    label: 'System Specialist (SS)',
-  },
-];
 
 export const SORT_ORDER = {
   DESC: 1,
@@ -81,7 +51,7 @@ export function topicsWithLineBreaks(reason) {
 }
 
 export function TopicFrequencyGraphWidget({
-  data, dateTime, updateRoles, loading,
+  data, loading,
 }) {
   // whether to show the data as accessible widget data or not
   const [showAccessibleData, setShowAccessibleData] = useState(false);
@@ -145,6 +115,9 @@ export function TopicFrequencyGraphWidget({
           size: 16,
         },
       },
+      font: {
+        color: '#1b1b1b',
+      },
       width,
       margin: {
         l: 80,
@@ -154,12 +127,20 @@ export function TopicFrequencyGraphWidget({
       xaxis: {
         automargin: true,
         tickangle: 0,
+        title: {
+          font: {
+            color: '#1b1b1b',
+          },
+        },
       },
       yaxis: {
         tickformat: ',.0d',
         title: {
           standoff: 60,
           text: 'Number of Activity Reports',
+          font: {
+            color: '#1b1b1b',
+          },
         },
       },
       hovermode: 'none',
@@ -181,11 +162,6 @@ export function TopicFrequencyGraphWidget({
     setOrder(selected.value);
   };
 
-  const onApplyRoles = (selected) => {
-    // we may get these as a string, so we cast them to ints
-    updateRoles(selected.map((s) => parseInt(s, 10)));
-  };
-
   // toggle the data table
   function toggleType() {
     setShowAccessibleData(!showAccessibleData);
@@ -197,10 +173,7 @@ export function TopicFrequencyGraphWidget({
         <Grid className="flex-align-self-center" desktop={{ col: 'auto' }} mobileLg={{ col: 8 }}>
           <h2 className="ttahub--dashboard-widget-heading margin-0">Number of Activity Reports by Topic</h2>
         </Grid>
-        <Grid desktop={{ col: 'auto' }} mobileLg={{ col: 4 }} className="display-flex desktop:padding-x-1 desktop:margin-y-0 margin-y-2 flex-align-self-center">
-          <DateTime classNames="display-flex flex-align-center padding-x-1" timestamp={dateTime.timestamp} label={dateTime.label} />
-        </Grid>
-        <Grid col="auto" className="ttahub--topic-frequency-graph-control-row display-flex desktop:padding-x-2">
+        <Grid col="auto" gap={1} className="ttahub--topic-frequency-graph-control-row desktop:display-flex desktop:padding-x-2">
           <ButtonSelect
             styleAsSelect
             labelId="tfGraphOrder"
@@ -225,21 +198,6 @@ export function TopicFrequencyGraphWidget({
               ]
             }
           />
-          <CheckboxSelect
-            styleAsSelect
-            toggleAllText="All Specialists"
-            toggleAllInitial
-            labelId="tfRoleFilter"
-            labelText="Filter by specialists"
-            ariaName="Change filter by specialists menu"
-            onApply={onApplyRoles}
-            options={
-              ROLES_MAP.map((role) => ({
-                value: role.selectValue,
-                label: role.label,
-              }))
-            }
-          />
         </Grid>
         <Grid desktop={{ col: 'auto' }} className="ttahub--show-accessible-data-button desktop:margin-y-0 mobile-lg:margin-y-1">
           <button
@@ -262,9 +220,6 @@ export function TopicFrequencyGraphWidget({
 }
 
 TopicFrequencyGraphWidget.propTypes = {
-  dateTime: PropTypes.shape({
-    timestamp: PropTypes.string, label: PropTypes.string,
-  }),
   data: PropTypes.oneOfType([
     PropTypes.arrayOf(
       PropTypes.shape({
@@ -274,11 +229,10 @@ TopicFrequencyGraphWidget.propTypes = {
     ), PropTypes.shape({}),
   ]),
   loading: PropTypes.bool.isRequired,
-  updateRoles: PropTypes.func.isRequired,
 };
 
 TopicFrequencyGraphWidget.defaultProps = {
-  dateTime: { timestamp: '', label: '' },
+
   data: [],
 };
 

@@ -4,17 +4,23 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import ReportMenu from '../ReportMenu';
+import ReportMenu, { MAXIMUM_EXPORTED_REPORTS } from '../ReportMenu';
 
 const RenderReportMenu = ({
   onExportAll = () => {},
   onExportSelected = () => {},
   hasSelectedReports = true,
+  count = 12,
+  downloadError = false,
+  setDownloadError = jest.fn(),
 }) => (
   <ReportMenu
+    count={count}
     onExportAll={onExportAll}
     onExportSelected={onExportSelected}
     hasSelectedReports={hasSelectedReports}
+    downloadError={downloadError}
+    setDownloadError={setDownloadError}
   />
 );
 
@@ -23,7 +29,7 @@ describe('ReportMenu', () => {
     render(<RenderReportMenu />);
     const button = await screen.findByRole('button');
     userEvent.click(button);
-    const report = await screen.findByText('Reports');
+    const report = await screen.findByText('Export reports');
     expect(report).toHaveClass('smart-hub--menu-button__open');
   });
 
@@ -32,7 +38,7 @@ describe('ReportMenu', () => {
     render(<RenderReportMenu onExportAll={onExport} />);
     const button = await screen.findByRole('button');
     userEvent.click(button);
-    const exportButton = await screen.findByRole('menuitem', { name: 'Export Table Data...' });
+    const exportButton = await screen.findByRole('menuitem', { name: 'Export table data' });
     userEvent.click(exportButton);
     expect(onExport).toHaveBeenCalled();
   });
@@ -43,7 +49,7 @@ describe('ReportMenu', () => {
       render(<RenderReportMenu onExportSelected={onExport} hasSelectedReports />);
       const button = await screen.findByRole('button');
       userEvent.click(button);
-      const exportButton = await screen.findByRole('menuitem', { name: 'Export Selected Reports...' });
+      const exportButton = await screen.findByRole('menuitem', { name: 'Export selected reports' });
       userEvent.click(exportButton);
       expect(onExport).toHaveBeenCalled();
     });
@@ -57,17 +63,40 @@ describe('ReportMenu', () => {
     // first, open the menu
     const button = await screen.findByRole('button');
     userEvent.click(button);
-    report = await screen.findByText('Reports');
+    report = await screen.findByText('Export reports');
     expect(report).toHaveClass('smart-hub--menu-button__open');
     menu = screen.queryByRole('menu');
     expect(menu).toBeInTheDocument();
 
     // Focus on the menu button should close the menu
     button.focus();
-    report = await screen.findByText('Reports');
+    report = await screen.findByText('Export reports');
     expect(report).not.toHaveClass('smart-hub--menu-button__open');
     menu = screen.queryByRole('menu');
     expect(menu).not.toBeInTheDocument();
+  });
+
+  it('shows the error message when there are too many reports', async () => {
+    render(<RenderReportMenu count={MAXIMUM_EXPORTED_REPORTS + 1} hasSelectedReports={false} />);
+    const button = await screen.findByRole('button');
+    userEvent.click(button);
+    const label = `This export has ${(MAXIMUM_EXPORTED_REPORTS + 1).toLocaleString('en-us')} reports. You can only export ${MAXIMUM_EXPORTED_REPORTS.toLocaleString('en-us')} reports at a time.`;
+    expect(await screen.findByText(label)).toBeVisible();
+  });
+
+  it('shows and dismisses a download error message', async () => {
+    const setDownloadError = jest.fn();
+    const downloadError = true;
+    render(<RenderReportMenu downloadError={downloadError} setDownloadError={setDownloadError} />);
+
+    const button = await screen.findByRole('button');
+    userEvent.click(button);
+
+    await screen.findByText(/sorry, something went wrong. Please try your request again/i);
+    const dismiss = await screen.findByRole('button', { name: /dismiss/i });
+    userEvent.click(dismiss);
+
+    expect(setDownloadError).toHaveBeenCalledWith(false);
   });
 
   it('closes when the Escape key is pressed', async () => {
@@ -78,21 +107,21 @@ describe('ReportMenu', () => {
     // first, open the menu
     const button = await screen.findByRole('button');
     userEvent.click(button);
-    report = await screen.findByText('Reports');
+    report = await screen.findByText('Export reports');
     expect(report).toHaveClass('smart-hub--menu-button__open');
     menu = screen.queryByRole('menu');
     expect(menu).toBeInTheDocument();
 
     // Keypress with the keys other than 'Escape' should NOT close the menu
     fireEvent.keyDown(document.activeElement || document.body, { key: ' ' });
-    report = await screen.findByText('Reports');
+    report = await screen.findByText('Export reports');
     expect(report).toHaveClass('smart-hub--menu-button__open');
     menu = screen.queryByRole('menu');
     expect(menu).toBeInTheDocument();
 
     // Keypress with the escape key should close the menu
     fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
-    report = await screen.findByText('Reports');
+    report = await screen.findByText('Export reports');
     expect(report).not.toHaveClass('smart-hub--menu-button__open');
     menu = screen.queryByRole('menu');
     expect(menu).not.toBeInTheDocument();

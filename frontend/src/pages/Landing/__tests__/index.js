@@ -1,40 +1,55 @@
-/* eslint-disable jest/no-disabled-tests */
 import '@testing-library/jest-dom';
 import React from 'react';
 import {
-  render, screen, fireEvent, waitFor, act,
+  render, screen, fireEvent, waitFor,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import fetchMock from 'fetch-mock';
-
+import { act } from 'react-dom/test-utils';
 import userEvent from '@testing-library/user-event';
+import { v4 as uuidv4 } from 'uuid';
 import UserContext from '../../../UserContext';
 import AriaLiveContext from '../../../AriaLiveContext';
 import Landing from '../index';
 import activityReports, { activityReportsSorted, generateXFakeReports, overviewRegionOne } from '../mocks';
-import { getReportsDownloadURL, getAllReportsDownloadURL, getAllAlertsDownloadURL } from '../../../fetchers/helpers';
+import { getAllAlertsDownloadURL } from '../../../fetchers/helpers';
+import { filtersToQueryString, formatDateRange } from '../../../utils';
+import { mockWindowProperty } from '../../../testHelpers';
 
 jest.mock('../../../fetchers/helpers');
 
-const oldWindowLocation = window.location;
-
 const mockAnnounce = jest.fn();
 
+// Get last 30 day filter.
+const defaultDate = formatDateRange({
+  lastThirtyDays: true,
+  forDateTime: true,
+});
+
+const filters = [{
+  id: uuidv4(),
+  topic: 'startDate',
+  condition: 'is within',
+  query: defaultDate,
+}];
+
+const dateFilter = filtersToQueryString(filters);
+
+const base = `/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=0&limit=10&${dateFilter}`;
+const baseAlerts = `/api/activity-reports/alerts?sortBy=startDate&sortDir=desc&offset=0&limit=10&${dateFilter}`;
+
 const withRegionOne = '&region.in[]=1';
-const withAllRegions = '&region.in[]=14';
-const base = '/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=0&limit=10';
-const baseAlerts = '/api/activity-reports/alerts?sortBy=startDate&sortDir=desc&offset=0&limit=10';
-const defaultBaseAlertsUrl = `${baseAlerts}${withAllRegions}`;
-const defaultBaseUrl = `${base}${withAllRegions}`;
-const defaultBaseAlertsUrlWithRegionOne = `${baseAlerts}${withRegionOne}`;
-const defaultBaseUrlWithRegionOne = `${base}${withRegionOne}`;
-const defaultOverviewUrl = '/api/widgets/overview';
-const overviewUrlWithRegionOne = `${defaultOverviewUrl}?${withRegionOne}`;
-const overviewUrlWithAllRegions = `${defaultOverviewUrl}?${withAllRegions}`;
+const baseAlertsWithRegionOne = `${baseAlerts}${withRegionOne}`;
+const baseWithRegionOne = `${base}${withRegionOne}`;
+
+const defaultOverviewUrl = `/api/widgets/overview?${dateFilter}`;
+const defaultOverviewUrlWithRegionOne = `${defaultOverviewUrl}${withRegionOne}`;
+const overviewUrlWithRegionOne = `${defaultOverviewUrl}?region.in[]=1`;
+const inTest = 'reportId.in[]=test';
 
 const mockFetchWithRegionOne = () => {
-  fetchMock.get(defaultBaseUrlWithRegionOne, { count: 2, rows: activityReports });
-  fetchMock.get(defaultBaseAlertsUrlWithRegionOne, {
+  fetchMock.get(baseWithRegionOne, { count: 2, rows: activityReports });
+  fetchMock.get(baseAlertsWithRegionOne, {
     alertsCount: 0,
     alerts: [],
   });
@@ -46,7 +61,7 @@ const renderLanding = (user) => {
     <MemoryRouter>
       <AriaLiveContext.Provider value={{ announce: mockAnnounce }}>
         <UserContext.Provider value={{ user }}>
-          <Landing authenticated user={user} />
+          <Landing authenticated />
         </UserContext.Provider>
       </AriaLiveContext.Provider>
     </MemoryRouter>,
@@ -54,18 +69,25 @@ const renderLanding = (user) => {
 };
 
 describe('Landing Page', () => {
+  mockWindowProperty('localStorage', {
+    setItem: jest.fn(),
+    getItem: jest.fn(),
+    removeItem: jest.fn(),
+  });
   beforeEach(async () => {
-    fetchMock.get(defaultBaseUrl, { count: 2, rows: activityReports });
-    fetchMock.get(defaultBaseUrlWithRegionOne, { count: 2, rows: activityReports });
-    fetchMock.get(defaultBaseAlertsUrlWithRegionOne, {
+    fetchMock.get(base, { count: 2, rows: activityReports });
+    fetchMock.get(baseWithRegionOne, { count: 2, rows: activityReports });
+    fetchMock.get(baseAlertsWithRegionOne, {
       alertsCount: 0,
       alerts: [],
     });
-    fetchMock.get(defaultBaseAlertsUrl, {
+    fetchMock.get(baseAlerts, {
       alertsCount: 0,
       alerts: [],
     });
+    fetchMock.get(defaultOverviewUrl, overviewRegionOne);
     fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
+
     const user = {
       name: 'test@test.com',
       permissions: [
@@ -77,13 +99,14 @@ describe('Landing Page', () => {
     };
 
     renderLanding(user);
-    await screen.findByText('Activity Reports');
+    await screen.findByText('Activity reports');
   });
   afterEach(() => fetchMock.restore());
 
   test('displays a dismissable alert with a status message for a report, if provided', async () => {
     const user = {
       name: 'test@test.com',
+      homeRegionId: 1,
       permissions: [
         {
           scopeId: 3,
@@ -101,7 +124,7 @@ describe('Landing Page', () => {
       { pathname: '/activity-reports/1', state: { message } },
     ];
 
-    await render(
+    render(
       <MemoryRouter initialEntries={pastLocations}>
         <UserContext.Provider value={{ user }}>
           <Landing authenticated user={user} />
@@ -125,7 +148,7 @@ describe('Landing Page', () => {
   });
 
   test('displays activity reports heading', async () => {
-    expect(await screen.findByText('Activity Reports')).toBeVisible();
+    expect(await screen.findByRole('heading', { name: /Activity reports - /i })).toBeVisible();
   });
 
   test('displays report id column', async () => {
@@ -135,16 +158,16 @@ describe('Landing Page', () => {
     expect(reportIdColumnHeader).toBeVisible();
   });
 
-  test('displays grantee column', async () => {
-    const granteeColumnHeader = await screen.findByRole('columnheader', {
-      name: /grantee/i,
+  test('displays recipient column', async () => {
+    const recipientColumnHeader = await screen.findByRole('columnheader', {
+      name: /recipient/i,
     });
-    expect(granteeColumnHeader).toBeVisible();
+    expect(recipientColumnHeader).toBeVisible();
   });
 
-  test('displays start date column', async () => {
+  test('displays date started column', async () => {
     const startDateColumnHeader = await screen.findByRole('columnheader', {
-      name: /start date/i,
+      name: /date started/i,
     });
     expect(startDateColumnHeader).toBeVisible();
   });
@@ -175,14 +198,14 @@ describe('Landing Page', () => {
     );
   });
 
-  test('displays the correct grantees', async () => {
-    const grantee = await screen.findByRole('button', { name: /johnston-romaguera johnston-romaguera grantee name click to visually reveal the recipients for r14-ar-1/i });
-    const nonGrantee = await screen.findByRole('cell', {
+  test('displays the correct recipients', async () => {
+    const recipient = await screen.findByRole('button', { name: /johnston-romaguera johnston-romaguera recipient name click to visually reveal the recipients for r14-ar-1/i });
+    const otherEntity = await screen.findByRole('cell', {
       name: /qris system/i,
     });
 
-    expect(grantee).toBeVisible();
-    expect(nonGrantee).toBeVisible();
+    expect(recipient).toBeVisible();
+    expect(otherEntity).toBeVisible();
   });
 
   test('displays the correct start date', async () => {
@@ -198,7 +221,7 @@ describe('Landing Page', () => {
 
     expect(topics).toBeVisible();
     expect(topics.firstChild).toHaveClass('smart-hub--ellipsis');
-    expect(topics.firstChild.firstChild).toHaveClass('smart-hub--tooltip-truncated');
+    expect(topics.firstChild.firstChild.firstChild).toHaveClass('smart-hub--tooltip-truncated');
     expect(topics.firstChild).toHaveTextContent('Behavioral / Mental Health CLASS: Instructional Support');
   });
 
@@ -207,7 +230,7 @@ describe('Landing Page', () => {
     expect(collaborators).toBeVisible();
     expect(collaborators.firstChild).toHaveClass('smart-hub--tooltip');
     expect(collaborators.firstChild.children.length).toBe(2);
-    const truncated = collaborators.firstChild.children[1].firstChild.firstChild;
+    const truncated = collaborators.firstChild.children[1].firstChild.firstChild.firstChild;
     expect(truncated).toHaveClass('smart-hub--tooltip-truncated');
     expect(truncated).toHaveTextContent('Orange, GS');
   });
@@ -216,14 +239,6 @@ describe('Landing Page', () => {
     const lastSavedDates = await screen.findAllByText(/02\/04\/2021/i);
 
     expect(lastSavedDates.length).toBe(1);
-  });
-
-  test('displays the correct statuses', async () => {
-    const draft = await screen.findByText(/draft/i);
-    const needsAction = await screen.findByText(/needs action/i);
-
-    expect(draft).toBeVisible();
-    expect(needsAction).toBeVisible();
   });
 
   test('displays the options buttons', async () => {
@@ -236,457 +251,11 @@ describe('Landing Page', () => {
 
   test('displays the new activity report button', async () => {
     const newActivityReportBtns = await screen.findAllByText(/New Activity Report/);
-
     expect(newActivityReportBtns.length).toBe(1);
   });
 });
 
-describe('Landing Page sorting', () => {
-  afterEach(() => fetchMock.restore());
-
-  beforeEach(async () => {
-    mockFetchWithRegionOne();
-    const user = {
-      name: 'test@test.com',
-      permissions: [
-        {
-          scopeId: 3,
-          regionId: 1,
-        },
-        {
-          scopeId: 2,
-          regionId: 1,
-        },
-      ],
-    };
-
-    renderLanding(user);
-    await screen.findByText('Activity Reports');
-  });
-
-  it('clicking status column header will sort by status', async () => {
-    const statusColumnHeader = await screen.findByText(/status/i);
-    fetchMock.reset();
-    fetchMock.get(defaultBaseAlertsUrlWithRegionOne,
-      { alertsCount: 0, alerts: [] });
-    fetchMock.get(
-      '/api/activity-reports?sortBy=calculatedStatus&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(statusColumnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[7]).toHaveTextContent(/needs action/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[16]).toHaveTextContent(/draft/i));
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=calculatedStatus&sortDir=desc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReports },
-    );
-
-    fireEvent.click(statusColumnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[7]).toHaveTextContent(/draft/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[16]).toHaveTextContent(/needs action/i));
-  });
-
-  it('clicking Last saved column header will sort by updatedAt', async () => {
-    const columnHeader = await screen.findByText(/last saved/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=updatedAt&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(columnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/02\/04\/2021/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[15]).toHaveTextContent(/02\/05\/2021/i));
-  });
-
-  it('clicking Collaborators column header will sort by collaborators', async () => {
-    const columnHeader = await screen.findByText(/collaborator\(s\)/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=collaborators&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    await act(async () => fireEvent.click(columnHeader));
-    await waitFor(() => expect(screen.getAllByRole('cell')[5]).toHaveTextContent('Cucumber User, GS Hermione Granger, SS'));
-    await waitFor(() => expect(screen.getAllByRole('cell')[14]).toHaveTextContent('Orange, GS Hermione Granger, SS'));
-  });
-
-  it('clicking Topics column header will sort by topics', async () => {
-    const columnHeader = await screen.findByText(/topic\(s\)/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=topics&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    await act(async () => fireEvent.click(columnHeader));
-    await waitFor(() => expect(screen.getAllByRole('cell')[4]).toHaveTextContent(''));
-    await waitFor(() => expect(screen.getAllByRole('cell')[13]).toHaveTextContent(/Behavioral \/ Mental Health CLASS: Instructional Support click to visually reveal the topics for R14-AR-1$/i));
-  });
-
-  it('clicking Creator column header will sort by author', async () => {
-    const columnHeader = await screen.findByText(/creator/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=author&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(columnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[3]).toHaveTextContent('Kiwi, GS'));
-    await waitFor(() => expect(screen.getAllByRole('cell')[12]).toHaveTextContent('Kiwi, TTAC'));
-  });
-
-  it('clicking Start date column header will sort by start date', async () => {
-    const columnHeader = await screen.findByText(/start date/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=startDate&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(columnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[2]).toHaveTextContent('02/01/2021'));
-    await waitFor(() => expect(screen.getAllByRole('cell')[11]).toHaveTextContent('02/08/2021'));
-  });
-
-  it('clicking Grantee column header will sort by grantee', async () => {
-    const columnHeader = await screen.findByRole('button', {
-      name: /grantee\. activate to sort ascending/i,
-    });
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=activityRecipients&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(columnHeader);
-    await waitFor(() => expect(screen.getAllByRole('cell')[1]).toHaveTextContent('Johnston-Romaguera Johnston-Romaguera Grantee Name'));
-  });
-
-  it('clicking Report id column header will sort by region and id', async () => {
-    const columnHeader = await screen.findByText(/report id/i);
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=regionId&sortDir=asc&offset=0&limit=10&region.in[]=1',
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(columnHeader);
-    await waitFor(() => expect(screen.getAllByRole('link')[4]).toHaveTextContent('R14-AR-2'));
-    await waitFor(() => expect(screen.getAllByRole('link')[5]).toHaveTextContent('R14-AR-1'));
-  });
-
-  it('Pagination links are visible', async () => {
-    const prevLink = await screen.findByRole('link', {
-      name: /go to previous page/i,
-    });
-    const pageOne = await screen.findByRole('link', {
-      name: /go to page number 1/i,
-    });
-    const nextLink = await screen.findByRole('link', {
-      name: /go to next page/i,
-    });
-
-    expect(prevLink).toBeVisible();
-    expect(pageOne).toBeVisible();
-    expect(nextLink).toBeVisible();
-  });
-
-  it('clicking on pagination page works', async () => {
-    const pageOne = await screen.findByRole('link', {
-      name: /go to page number 1/i,
-    });
-    fetchMock.reset();
-    fetchMock.get(defaultBaseAlertsUrlWithRegionOne,
-      { alertsCount: 0, alerts: [] });
-    fetchMock.get(
-      defaultBaseUrl,
-      { count: 2, rows: activityReportsSorted },
-    );
-
-    fireEvent.click(pageOne);
-    await waitFor(() => expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/02\/05\/2021/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[15]).toHaveTextContent(/02\/04\/2021/i));
-  });
-
-  it('clicking on the second page updates to, from and total', async () => {
-    expect(generateXFakeReports(10).length).toBe(10);
-    await screen.findByRole('link', {
-      name: /go to page number 1/i,
-    });
-    fetchMock.reset();
-    fetchMock.get(defaultBaseAlertsUrl,
-      { alertsCount: 0, alerts: [] });
-    fetchMock.get(
-      defaultBaseUrl,
-      { count: 17, rows: generateXFakeReports(10) },
-    );
-    fetchMock.get(
-      '/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=10&limit=10&region.in[]=14',
-      { count: 17, rows: generateXFakeReports(10) },
-    );
-    fetchMock.get(
-      overviewUrlWithAllRegions,
-      overviewRegionOne,
-    );
-    const user = {
-      name: 'test@test.com',
-      homeRegionId: 14,
-      permissions: [
-        {
-          scopeId: 3,
-          regionId: 1,
-        },
-      ],
-    };
-
-    renderLanding(user);
-
-    const pageTwo = await screen.findByRole('link', {
-      name: /go to page number 2/i,
-    });
-
-    fetchMock.get(
-      '/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=10&limit=10&region.in[]=1',
-      { count: 17, rows: generateXFakeReports(10) },
-    );
-
-    fireEvent.click(pageTwo);
-    await waitFor(() => expect(screen.getByText(/11-17 of 17/i)).toBeVisible());
-  });
-});
-
 describe('Landing page table menus & selections', () => {
-  describe('Table row context menu', () => {
-    beforeAll(() => {
-      delete global.window.location;
-
-      global.window.location = {
-        ...oldWindowLocation,
-        assign: jest.fn(),
-      };
-    });
-
-    beforeEach(async () => {
-      fetchMock.reset();
-      mockFetchWithRegionOne();
-      fetchMock.get(
-        defaultBaseUrl,
-        { count: 10, rows: generateXFakeReports(10) },
-      );
-      const user = {
-        name: 'test@test.com',
-        permissions: [
-          {
-            scopeId: 3,
-            regionId: 1,
-          },
-          {
-            scopeId: 2,
-            regionId: 1,
-          },
-        ],
-      };
-
-      renderLanding(user);
-      await screen.findByText('Activity Reports');
-    });
-
-    afterEach(() => {
-      window.location.assign.mockReset();
-      getReportsDownloadURL.mockClear();
-      fetchMock.restore();
-    });
-
-    afterAll(() => {
-      window.location = oldWindowLocation;
-    });
-
-    it('can trigger an activity report download', async () => {
-      const contextMenus = await screen.findAllByRole('button', { name: /actions for activity report /i });
-
-      await waitFor(() => {
-        expect(contextMenus.length).not.toBe(0);
-      });
-
-      const menu = contextMenus[0];
-
-      await waitFor(() => {
-        expect(menu).toBeVisible();
-      });
-
-      fireEvent.click(menu);
-
-      const viewButton = await screen.findByRole('button', { name: 'Download' });
-
-      await waitFor(() => {
-        expect(viewButton).toBeVisible();
-      });
-
-      fireEvent.click(viewButton);
-
-      await waitFor(() => {
-        expect(window.location.assign).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('Table row checkboxes', () => {
-    afterEach(() => fetchMock.restore());
-
-    beforeEach(async () => {
-      fetchMock.reset();
-      fetchMock.get(defaultBaseAlertsUrl,
-        { alertsCount: 0, alerts: [] });
-      fetchMock.get(
-        defaultBaseUrl,
-        { count: 10, rows: generateXFakeReports(10) },
-      );
-      fetchMock.get(
-        overviewUrlWithAllRegions,
-        overviewRegionOne,
-      );
-      const user = {
-        name: 'test@test.com',
-        homeRegionId: 14,
-        permissions: [
-          {
-            scopeId: 3,
-            regionId: 1,
-          },
-        ],
-      };
-
-      renderLanding(user);
-      await screen.findByText('Activity Reports');
-    });
-
-    it('Can select and deselect a single checkbox', async () => {
-      const reportCheckboxes = await screen.findAllByRole('checkbox', { name: /select /i });
-
-      // Element 0 is 'Select all', so we want 1 or later
-      const singleReportCheck = reportCheckboxes[1];
-      expect(singleReportCheck.value).toEqual('1');
-
-      fireEvent.click(singleReportCheck);
-      expect(singleReportCheck.checked).toBe(true);
-
-      fireEvent.click(singleReportCheck);
-      expect(singleReportCheck.checked).toBe(false);
-    });
-  });
-
-  describe('Table header checkbox', () => {
-    afterEach(() => fetchMock.restore());
-
-    beforeEach(async () => {
-      fetchMock.reset();
-      fetchMock.get(defaultBaseAlertsUrl,
-        { alertsCount: 0, alerts: [] });
-      fetchMock.get(
-        defaultBaseUrl,
-        { count: 10, rows: generateXFakeReports(10) },
-      );
-      fetchMock.get(
-        overviewUrlWithAllRegions,
-        overviewRegionOne,
-      );
-      const user = {
-        name: 'test@test.com',
-        homeRegionId: 14,
-        permissions: [
-          {
-            scopeId: 3,
-            regionId: 1,
-          },
-        ],
-      };
-
-      renderLanding(user);
-      await screen.findByText('Activity Reports');
-    });
-
-    it('Selects all reports when checked', async () => {
-      const selectAllCheckbox = await screen.findByLabelText(/select or de-select all reports/i);
-
-      fireEvent.click(selectAllCheckbox);
-
-      await waitFor(() => {
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(11); // 1 selectAllCheckbox + 10 report checkboxes
-        checkboxes.forEach((c) => expect(c).toBeChecked());
-      });
-    });
-
-    it('De-selects all reports if all are already selected', async () => {
-      const selectAllCheckbox = await screen.findByLabelText(/select or de-select all reports/i);
-
-      fireEvent.click(selectAllCheckbox);
-
-      await waitFor(() => {
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(11); // 1 selectAllCheckbox + 10 report checkboxes
-        checkboxes.forEach((c) => expect(c).toBeChecked());
-      });
-
-      fireEvent.click(selectAllCheckbox);
-
-      await waitFor(() => {
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(11); // 1 selectAllCheckbox + 10 report checkboxes
-        checkboxes.forEach((c) => expect(c).not.toBeChecked());
-      });
-    });
-  });
-
-  describe('Selected count badge', () => {
-    it('can de-select all reports', async () => {
-      fetchMock.reset();
-      fetchMock.get(defaultBaseAlertsUrl,
-        { alertsCount: 0, alerts: [] });
-      fetchMock.get(
-        defaultBaseUrl,
-        { count: 10, rows: generateXFakeReports(10) },
-      );
-      fetchMock.get(
-        overviewUrlWithAllRegions,
-        overviewRegionOne,
-      );
-      const user = {
-        name: 'test@test.com',
-        homeRegionId: 14,
-        permissions: [
-          {
-            scopeId: 3,
-            regionId: 1,
-          },
-        ],
-      };
-
-      renderLanding(user);
-      await screen.findByText('Activity Reports');
-      const selectAllCheckbox = await screen.findByLabelText(/select or de-select all reports/i);
-      userEvent.click(selectAllCheckbox);
-      await waitFor(() => {
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(11); // 1 selectAllCheckbox + 10 report checkboxes
-        checkboxes.forEach((c) => expect(c).toBeChecked());
-      });
-
-      const deselect = await screen.findByRole('button', { name: 'deselect all reports' });
-      fireEvent.click(deselect);
-      await waitFor(() => {
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(11); // 1 selectAllCheckbox + 10 report checkboxes
-        checkboxes.forEach((c) => expect(c).not.toBeChecked());
-      });
-    });
-  });
-
   describe('download all alerts button', () => {
     describe('downloads all alerts', () => {
       afterAll(() => {
@@ -696,14 +265,19 @@ describe('Landing page table menus & selections', () => {
       beforeAll(async () => {
         fetchMock.reset();
         fetchMock.get(
-          defaultBaseAlertsUrlWithRegionOne,
+          baseAlerts,
           { count: 10, alerts: generateXFakeReports(10) },
         );
         fetchMock.get(
-          defaultBaseUrlWithRegionOne,
+          base,
           { count: 10, rows: [] },
         );
         fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
+
+        window.location = {
+          assign: jest.fn(),
+        };
+        fetchMock.get(defaultOverviewUrl, overviewRegionOne);
       });
 
       it('downloads all reports', async () => {
@@ -726,46 +300,34 @@ describe('Landing page table menus & selections', () => {
         userEvent.click(reportMenu);
         const downloadButton = await screen.findByRole('menuitem', { name: /export table data/i });
         userEvent.click(downloadButton);
-        expect(getAllAlertsDownloadURL).toHaveBeenCalledWith('region.in[]=1');
+        expect(getAllAlertsDownloadURL).toHaveBeenCalledWith(dateFilter);
       });
-    });
-  });
 
-  describe('download all reports button', () => {
-    afterAll(() => {
-      getAllReportsDownloadURL.mockClear();
-    });
+      it('disables alert download button while downloading', async () => {
+        const user = {
+          name: 'test@test.com',
+          homeRegionId: 1,
+          permissions: [
+            {
+              scopeId: 3,
+              regionId: 1,
+            },
+            {
+              scopeId: 2,
+              regionId: 1,
+            },
+          ],
+        };
 
-    beforeAll(async () => {
-      fetchMock.reset();
-      fetchMock.get(
-        defaultBaseAlertsUrlWithRegionOne,
-        { count: 10, alerts: generateXFakeReports(10) },
-      );
-      fetchMock.get(
-        defaultBaseUrlWithRegionOne,
-        { count: 10, rows: [] },
-      );
-      fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
-    });
-
-    it('downloads all reports', async () => {
-      const user = {
-        name: 'test@test.com',
-        permissions: [
-          {
-            scopeId: 3,
-            regionId: 1,
-          },
-        ],
-      };
-
-      renderLanding(user);
-      const reportMenu = await screen.findByLabelText(/reports menu/i);
-      userEvent.click(reportMenu);
-      const downloadButton = await screen.findByRole('menuitem', { name: /export table data/i });
-      userEvent.click(downloadButton);
-      expect(getAllReportsDownloadURL).toHaveBeenCalledWith('region.in[]=1');
+        renderLanding(user);
+        const reportMenu = await screen.findByLabelText(/my alerts report menu/i);
+        userEvent.click(reportMenu);
+        expect(await screen.findByRole('menuitem', { name: /export table data/i })).not.toBeDisabled();
+        const downloadButton = await screen.findByRole('menuitem', { name: /export table data/i });
+        userEvent.click(downloadButton);
+        expect(await screen.findByRole('menuitem', { name: /export table data/i })).toBeDisabled();
+        expect(getAllAlertsDownloadURL).toHaveBeenCalledWith(dateFilter);
+      });
     });
   });
 });
@@ -775,21 +337,36 @@ describe('My alerts sorting', () => {
 
   beforeEach(async () => {
     fetchMock.reset();
-    fetchMock.get(defaultBaseAlertsUrl, {
+
+    // Alerts.
+    fetchMock.get(baseAlerts, {
       alertsCount: 2,
       alerts: activityReports,
     });
-    fetchMock.get(defaultBaseUrl, { count: 0, rows: [] });
-    fetchMock.get(defaultBaseAlertsUrlWithRegionOne, {
+
+    // Alerts Region 1.
+    fetchMock.get(baseAlertsWithRegionOne, {
       alertsCount: 2,
       alerts: activityReports,
     });
-    fetchMock.get(defaultBaseUrlWithRegionOne, { count: 0, rows: [] });
-    fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
-    fetchMock.get(overviewUrlWithAllRegions, overviewRegionOne);
+
+    // Activity Reports.
+    fetchMock.get(base, { count: 0, rows: [] });
+
+    // Activity Reports Region 1.
+    fetchMock.get(baseWithRegionOne, { count: 0, rows: [] });
+
+    // Overview.
     fetchMock.get(defaultOverviewUrl, overviewRegionOne);
+
+    // Overview Region 1.
+    fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
+
+    fetchMock.get(defaultOverviewUrlWithRegionOne, overviewRegionOne);
+
     const user = {
       name: 'test@test.com',
+      homeRegionId: 1,
       permissions: [
         {
           scopeId: 3,
@@ -803,81 +380,79 @@ describe('My alerts sorting', () => {
     };
 
     renderLanding(user);
-    await screen.findByText('Activity Reports');
+    await screen.findByText('Activity reports');
   });
 
   it('is enabled for Status', async () => {
     const statusColumnHeaders = await screen.findAllByText(/status/i);
 
-    expect(statusColumnHeaders.length).toBe(2);
+    expect(statusColumnHeaders.length).toBe(1);
     fetchMock.reset();
 
     fireEvent.click(statusColumnHeaders[0]);
 
-    await waitFor(() => expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/draft/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[14]).toHaveTextContent(/needs action/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[7]).toHaveTextContent(/draft/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[16]).toHaveTextContent(/needs action/i));
 
-    fetchMock.get('/api/activity-reports/alerts?sortBy=calculatedStatus&sortDir=desc&offset=0&limit=10&region.in[]=1',
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=calculatedStatus&sortDir=desc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReportsSorted });
 
     fireEvent.click(statusColumnHeaders[0]);
-    await waitFor(() => expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/needs action/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[14]).toHaveTextContent(/draft/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[7]).toHaveTextContent(/needs action/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[16]).toHaveTextContent(/draft/i));
   });
 
   it('is enabled for Report ID', async () => {
-    const columnHeaders = await screen.findAllByText(/report id/i);
-
-    expect(columnHeaders.length).toBe(2);
+    const reportIdHeaders = await screen.findAllByRole('columnheader', { name: /report id/i });
+    expect(reportIdHeaders.length).toBe(2);
     fetchMock.reset();
-    fetchMock.get('/api/activity-reports/alerts?sortBy=regionId&sortDir=asc&offset=0&limit=10&region.in[]=1',
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=regionId&sortDir=asc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReports });
     fetchMock.get(
-      defaultBaseUrl,
+      base,
       { count: 0, rows: [] },
     );
-
+    const columnHeaders = await screen.findAllByText(/report id/i);
     fireEvent.click(columnHeaders[0]);
     await waitFor(() => expect(screen.getAllByRole('cell')[0]).toHaveTextContent(/r14-ar-1/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[8]).toHaveTextContent(/r14-ar-2/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[9]).toHaveTextContent(/r14-ar-2/i));
   });
 
-  it('is enabled for Grantee', async () => {
+  it('is enabled for Recipient', async () => {
     const columnHeaders = await screen.findAllByRole('button', {
-      name: /grantee\. activate to sort ascending/i,
+      name: /recipient\. activate to sort ascending/i,
     });
     expect(columnHeaders.length).toBe(2);
     fetchMock.reset();
-    fetchMock.get('/api/activity-reports/alerts?sortBy=activityRecipients&sortDir=asc&offset=0&limit=10&region.in[]=1',
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=activityRecipients&sortDir=asc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReports });
     fetchMock.get(
-      defaultBaseUrl,
+      base,
       { count: 0, rows: [] },
     );
 
     fireEvent.click(columnHeaders[0]);
 
-    const textContent = /Johnston-Romaguera Johnston-Romaguera Grantee Name click to visually reveal the recipients for R14-AR-1$/i;
+    const textContent = /Johnston-Romaguera Johnston-Romaguera Recipient Name click to visually reveal the recipients for R14-AR-1$/i;
     await waitFor(() => expect(screen.getAllByRole('cell')[1]).toHaveTextContent(textContent));
-    await waitFor(() => expect(screen.getAllByRole('cell')[9]).toHaveTextContent(/qris system/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[10]).toHaveTextContent(/qris system/i));
   });
 
   it('is enabled for Start date', async () => {
-    const columnHeaders = await screen.findAllByText(/start date/i);
-
+    const columnHeaders = await screen.findAllByRole('button', { name: /date started\. activate to sort ascending/i });
     expect(columnHeaders.length).toBe(2);
     fetchMock.reset();
-    fetchMock.get('/api/activity-reports/alerts?sortBy=startDate&sortDir=asc&offset=0&limit=10&region.in[]=1',
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=startDate&sortDir=asc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReportsSorted });
     fetchMock.get(
-      defaultBaseUrl,
+      base,
       { count: 0, rows: [] },
     );
 
     fireEvent.click(columnHeaders[0]);
 
     await waitFor(() => expect(screen.getAllByRole('cell')[2]).toHaveTextContent(/02\/01\/2021/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[10]).toHaveTextContent(/02\/08\/2021/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[11]).toHaveTextContent(/02\/08\/2021/i));
   });
 
   it('is enabled for Creator', async () => {
@@ -885,164 +460,49 @@ describe('My alerts sorting', () => {
 
     expect(columnHeaders.length).toBe(2);
     fetchMock.reset();
-    fetchMock.get('/api/activity-reports/alerts?sortBy=author&sortDir=asc&offset=0&limit=10&region.in[]=1',
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=author&sortDir=asc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReportsSorted });
     fetchMock.get(
-      defaultBaseUrl,
+      base,
       { count: 0, rows: [] },
     );
 
     fireEvent.click(columnHeaders[0]);
 
     await waitFor(() => expect(screen.getAllByRole('cell')[3]).toHaveTextContent(/kiwi, gs/i));
-    await waitFor(() => expect(screen.getAllByRole('cell')[11]).toHaveTextContent(/kiwi, ttac/i));
+    await waitFor(() => expect(screen.getAllByRole('cell')[12]).toHaveTextContent(/kiwi, ttac/i));
   });
 
   it('is enabled for Collaborator(s)', async () => {
     const columnHeaders = await screen.findAllByText(/collaborator\(s\)/i);
     expect(columnHeaders.length).toBe(2);
     fetchMock.reset();
-    fetchMock.get(`/api/activity-reports/alerts?sortBy=collaborators&sortDir=asc&offset=0&limit=10${withRegionOne}`,
+
+    fetchMock.get(`/api/activity-reports/alerts?sortBy=collaborators&sortDir=asc&offset=0&limit=10&${dateFilter}`,
       { alertsCount: 2, alerts: activityReportsSorted });
-    fetchMock.get(`${defaultBaseUrl}${withRegionOne}`, { count: 0, rows: [] });
+    fetchMock.get(`${base}`, { count: 0, rows: [] });
 
     fireEvent.click(columnHeaders[0]);
 
     const firstCell = /Cucumber User, GS Hermione Granger, SS click to visually reveal the collaborators for R14-AR-2$/i;
     const secondCell = /Orange, GS Hermione Granger, SS click to visually reveal the collaborators for R14-AR-1$/i;
-    await waitFor(() => expect(screen.getAllByRole('cell')[4]).toHaveTextContent(firstCell));
-    await waitFor(() => expect(screen.getAllByRole('cell')[12]).toHaveTextContent(secondCell));
-  });
-});
-
-describe('Landing Page error', () => {
-  afterEach(() => fetchMock.restore());
-
-  beforeEach(() => {
-    mockFetchWithRegionOne();
-    fetchMock.get(overviewUrlWithAllRegions, overviewRegionOne);
-    fetchMock.get(defaultOverviewUrl, overviewRegionOne);
-    fetchMock.get(base, { count: 0, rows: [] });
-    fetchMock.get(baseAlerts, { alertsCount: 0, alerts: [] });
-  });
-
-  it('handles errors by displaying an error message', async () => {
-    fetchMock.get(defaultBaseUrl, 500);
-    fetchMock.get(defaultBaseAlertsUrl, { alertsCount: 0, alerts: [] });
-    const user = {
-      name: 'test@test.com',
-      homeRegionId: 14,
-      permissions: [
-        {
-          scopeId: 3,
-          regionId: 1,
-        },
-      ],
-    };
-    renderLanding(user);
-    const alert = await screen.findByRole('alert');
-    expect(alert).toBeVisible();
-    expect(alert).toHaveTextContent('Unable to fetch reports');
-  });
-
-  it('displays an empty row if there are no reports', async () => {
-    fetchMock.get(
-      defaultBaseUrl,
-      { count: 0, rows: [] },
-    );
-    const user = {
-      name: 'test@test.com',
-      permissions: [
-        {
-          scopeId: 3,
-          regionId: 1,
-        },
-      ],
-    };
-    renderLanding(user);
-    const rowCells = await screen.findAllByRole('cell');
-    expect(rowCells.length).toBe(9);
-    const grantee = rowCells[1];
-    expect(grantee).toHaveTextContent('');
-  });
-
-  it('does not displays new activity report button without permission', async () => {
-    fetchMock.get(
-      defaultBaseUrl,
-      { count: 2, rows: activityReports },
-    );
-    const user = {
-      name: 'test@test.com',
-      permissions: [
-        {
-          scopeId: 2,
-          regionId: 1,
-        },
-      ],
-    };
-    renderLanding(user);
-
-    await expect(screen.findAllByText(/New Activity Report/)).rejects.toThrow();
+    await waitFor(() => expect(screen.getAllByRole('cell')[5]).toHaveTextContent(firstCell));
+    await waitFor(() => expect(screen.getAllByRole('cell')[14]).toHaveTextContent(secondCell));
   });
 });
 
 describe('handleApplyFilters', () => {
+  beforeAll(() => fetchMock.reset());
   beforeEach(() => {
+    delete window.location;
+    window.location = new URL('https://www.test.gov');
     mockFetchWithRegionOne();
-    fetchMock.get(defaultBaseAlertsUrl, { count: 0, rows: [] });
-    fetchMock.get(defaultBaseUrl, { count: 2, rows: activityReports });
-    fetchMock.get(overviewUrlWithAllRegions, overviewRegionOne);
+    fetchMock.get(base, { count: 2, rows: activityReports });
     fetchMock.get(defaultOverviewUrl, overviewRegionOne);
-    fetchMock.get(base, { count: 0, rows: [] });
     fetchMock.get(baseAlerts, { alertsCount: 0, alerts: [] });
-  });
 
-  afterEach(() => fetchMock.restore());
-
-  it('calls AriaLiveContext.announce', async () => {
-    const user = {
-      name: 'test@test.com',
-      permissions: [
-        {
-          scopeId: 2,
-          regionId: 1,
-        },
-      ],
-    };
-    renderLanding(user);
-    // Only one button exists only because there are no alerts
-    const filterMenuButton = await screen.findByRole('button', { name: /filters/i });
-    fireEvent.click(filterMenuButton);
-    const addFilterButton = await screen.findByRole('button', { name: /add new filter/i });
-    fireEvent.click(addFilterButton);
-
-    const topic = await screen.findByRole('combobox', { name: 'topic' });
-    userEvent.selectOptions(topic, 'reportId');
-
-    const condition = await screen.findByRole('combobox', { name: 'condition' });
-    userEvent.selectOptions(condition, 'Contains');
-
-    fetchMock.get('/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=0&limit=10&reportId.in[]=test', { count: 0, rows: [] });
-    const query = await screen.findByRole('textbox');
-    userEvent.type(query, 'test');
-
-    const apply = await screen.findByRole('button', { name: 'Apply Filters' });
-    userEvent.click(apply);
-
-    expect(mockAnnounce).toHaveBeenCalled();
-    // wait for everything to finish loading
-    await waitFor(() => expect(screen.queryByText(/Loading data/i)).toBeNull());
-  });
-});
-
-describe('handleApplyAlertFilters', () => {
-  beforeEach(() => {
-    fetchMock.get(defaultBaseAlertsUrlWithRegionOne, {
-      count: 10,
-      alerts: generateXFakeReports(10),
-    });
-    fetchMock.get(defaultBaseUrlWithRegionOne, { count: 1, rows: generateXFakeReports(1) });
-    fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
+    fetchMock.get(`${defaultOverviewUrl}?${inTest}`, overviewRegionOne);
+    fetchMock.get(`${baseAlerts}&${inTest}`, { alertsCount: 0, alerts: [] });
   });
 
   afterEach(() => fetchMock.restore());
@@ -1060,33 +520,95 @@ describe('handleApplyAlertFilters', () => {
     };
     renderLanding(user);
 
-    await screen.findByText(/My activity report alerts/i);
-    // Both alerts and AR tables' buttons should appear
-    const allFilterButtons = await screen.findAllByRole('button', { name: /filters/i });
-    expect(allFilterButtons.length).toBe(2);
-
-    const filterMenuButton = allFilterButtons[0];
+    // Only one button exists only because there are no alerts
+    const filterMenuButton = await screen.findByRole('button', { name: /filters/i });
     fireEvent.click(filterMenuButton);
-    const addFilterButton = await screen.findByRole('button', { name: /add new filter/i });
-    fireEvent.click(addFilterButton);
+
+    // Get filter group.
+    const topic = await screen.findByRole('combobox', { name: /topic/i });
+    userEvent.selectOptions(topic, 'reportId');
+
+    const condition = await screen.findByRole('combobox', { name: 'condition' });
+    userEvent.selectOptions(condition, 'contains');
+
+    fetchMock.get('/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=0&limit=10&reportId.in[]=test', { count: 0, rows: [] });
+    const query = await screen.findByRole('textbox');
+    userEvent.type(query, 'test');
+
+    // const apply = await screen.findByRole('button', { name: /apply filters to this page/i });
+    const apply = await screen.findByTestId(/apply-filters-test-id/i);
+
+    act(() => {
+      userEvent.click(apply);
+    });
+
+    expect(mockAnnounce).toHaveBeenCalled();
+    // wait for everything to finish loading
+    await waitFor(() => expect(screen.queryByText(/Loading data/i)).toBeNull());
+  });
+});
+
+describe('handleApplyAlertFilters', () => {
+  beforeAll(() => fetchMock.reset());
+  beforeEach(() => {
+    delete window.location;
+    window.location = new URL('https://www.test.gov');
+    fetchMock.get(baseAlerts, {
+      count: 10,
+      alerts: generateXFakeReports(10),
+    });
+
+    fetchMock.get(base,
+      { count: 1, rows: generateXFakeReports(1) });
+    fetchMock.get(overviewUrlWithRegionOne, overviewRegionOne);
+    fetchMock.get(`${base}&${inTest}`, {
+      count: 0,
+      rows: [],
+    });
+    fetchMock.get(`${defaultOverviewUrl}?${inTest}`, overviewRegionOne);
+    fetchMock.get(`${baseAlerts}&${inTest}`, { alertsCount: 0, alerts: [] });
+
+    fetchMock.get(defaultOverviewUrl, overviewRegionOne);
+  });
+
+  afterEach(() => fetchMock.restore());
+
+  it('calls AriaLiveContext.announce', async () => {
+    const user = {
+      name: 'test@test.com',
+      homeRegionId: 1,
+      permissions: [
+        {
+          scopeId: 3,
+          regionId: 1,
+        },
+      ],
+    };
+    renderLanding(user);
+
+    const filterMenuButton = await screen.findByRole('button', { name: /filters/i });
+    fireEvent.click(filterMenuButton);
 
     const topic = await screen.findByRole('combobox', { name: 'topic' });
     userEvent.selectOptions(topic, 'reportId');
 
     const condition = await screen.findByRole('combobox', { name: 'condition' });
-    userEvent.selectOptions(condition, 'Contains');
+    userEvent.selectOptions(condition, 'contains');
 
     const query = await screen.findByRole('textbox');
     userEvent.type(query, 'test');
 
     fetchMock.restore();
-    fetchMock.get(
-      '/api/activity-reports/alerts?sortBy=startDate&sortDir=desc&offset=0&limit=10&reportId.in[]=test&region.in[]=1',
-      { count: 1, rows: generateXFakeReports(1) },
-    );
-
-    const apply = await screen.findByRole('button', { name: 'Apply Filters' });
-    userEvent.click(apply);
+    fetchMock.get('/api/activity-reports/alerts?sortBy=startDate&sortDir=desc&offset=0&limit=10&reportId.in[]=test', {
+      count: 1,
+      alerts: generateXFakeReports(1),
+    });
+    fetchMock.get('/api/activity-reports?sortBy=updatedAt&sortDir=desc&offset=0&limit=10&reportId.in[]=test', { count: 1, rows: generateXFakeReports(1) });
+    fetchMock.get('/api/widgets/overview?reportId.in[]=test', overviewRegionOne);
+    const apply = await screen.findByTestId(/apply-filters-test-id/i);
+    act(() => {
+      userEvent.click(apply);
+    });
 
     expect(mockAnnounce).toHaveBeenCalled();
     // wait for everything to finish loading

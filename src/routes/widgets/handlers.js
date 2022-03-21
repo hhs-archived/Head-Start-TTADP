@@ -1,9 +1,9 @@
 /* eslint-disable import/prefer-default-export */
 import widgets from '../../widgets';
-import { filtersToScopes } from '../../scopes/activityReport';
 import handleErrors from '../../lib/apiErrorHandler';
 import { setReadRegions } from '../../services/accessValidation';
 import { onlyAllowedKeys, formatQuery } from './utils';
+import filtersToScopes from '../../scopes';
 
 const namespace = 'SERVICE:WIDGETS';
 
@@ -22,10 +22,23 @@ export async function getWidget(req, res) {
     }
 
     // This returns the query object with "region" property filtered by user permissions
-    const query = await setReadRegions(req.query, req.session.userId, true);
+    const query = await setReadRegions(req.query, req.session.userId);
 
-    // convert the query to scopes
-    const scopes = filtersToScopes(query);
+    // Determine what scopes we need.
+    /**
+     * right now we are hard-coding in the parameter "subset", for which I am using to indicate
+     * that the scopes returned should be to produce a total subset based on which model is
+     * specified. that feels like a bit of word salad, so hopefully that makes sense.
+     *
+     * In this case, we are currently only querying for activity reports in the widgets
+     * as the main model but in the overview widgets we also need a matching subset of grants
+     * so this specifies that the grant query should be returned as a subset based on the activity
+     * report filters. I'm not sure about the naming here.
+     *
+     * The idea is twofold, firstly, that we can expand the options passed to filtersToScopes and
+     * also that we can as needed modify the request to add certain objects
+     */
+    const scopes = filtersToScopes(query, { grant: { subset: true } });
 
     // filter out any disallowed keys
     const queryWithFilteredKeys = onlyAllowedKeys(query);

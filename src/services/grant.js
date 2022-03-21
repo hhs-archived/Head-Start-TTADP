@@ -1,7 +1,6 @@
 import { Op } from 'sequelize';
-import { Grant, Grantee } from '../models';
+import { sequelize, Grant, Recipient } from '../models';
 
-// eslint-disable-next-line import/prefer-default-export
 export async function cdiGrants(unassigned, active) {
   const where = [{ cdi: true }];
 
@@ -14,12 +13,12 @@ export async function cdiGrants(unassigned, active) {
   }
 
   return Grant.findAll({
-    attributes: ['id', 'cdi', 'number', 'status', 'startDate', 'endDate', 'regionId', 'granteeId'],
+    attributes: ['id', 'cdi', 'number', 'status', 'startDate', 'endDate', 'regionId', 'recipientId'],
     where: { [Op.and]: where },
     include: [
       {
-        model: Grantee,
-        as: 'grantee',
+        model: Recipient,
+        as: 'recipient',
       },
     ],
     order: [
@@ -28,12 +27,30 @@ export async function cdiGrants(unassigned, active) {
   });
 }
 
+export async function statesByGrantRegion(regions) {
+  const grants = await Grant.findAll({
+    attributes: [
+      [sequelize.fn('DISTINCT', sequelize.col('stateCode')), 'stateCode'],
+    ],
+    where: {
+      stateCode: {
+        [Op.not]: null,
+      },
+      regionId: regions,
+    },
+    raw: true,
+    order: ['stateCode'],
+  });
+
+  return grants.map((grant) => grant.stateCode);
+}
+
 export async function grantById(grantId) {
   return Grant.findOne({
-    attributes: ['id', 'cdi', 'number', 'status', 'startDate', 'endDate', 'regionId', 'granteeId'],
+    attributes: ['id', 'cdi', 'number', 'status', 'startDate', 'endDate', 'regionId', 'recipientId'],
     include: [{
-      model: Grantee,
-      as: 'grantee',
+      model: Recipient,
+      as: 'recipient',
     }],
     where: {
       id: grantId,
@@ -41,12 +58,12 @@ export async function grantById(grantId) {
   });
 }
 
-export async function assignCDIGrant(grant, regionId, granteeId) {
+export async function assignCDIGrant(grant, regionId, recipientId) {
   const updatedGrant = await grant.update({
     regionId,
-    granteeId,
+    recipientId,
   }, {
-    fields: ['regionId', 'granteeId'],
+    fields: ['regionId', 'recipientId'],
     returning: true,
   });
   return updatedGrant;

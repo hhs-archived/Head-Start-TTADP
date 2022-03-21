@@ -41,6 +41,11 @@ export default class ActivityReport {
       && this.activityReport.calculatedStatus !== REPORT_STATUSES.APPROVED;
   }
 
+  canUnlock() {
+    return (this.isUnlockAdmin())
+      && this.activityReport.calculatedStatus === REPORT_STATUSES.APPROVED;
+  }
+
   canViewLegacy() {
     return this.canReadInRegion();
   }
@@ -60,34 +65,47 @@ export default class ActivityReport {
   }
 
   canApproveInRegion() {
-    const permissions = _.find(this.user.permissions,
+    const permissions = _.find(
+      this.user.permissions,
       (permission) => (
         permission.scopeId === SCOPES.APPROVE_REPORTS
-        && permission.regionId === this.activityReport.regionId));
+        && permission.regionId === this.activityReport.regionId),
+    );
     return !_.isUndefined(permissions);
   }
 
   canWriteInRegion() {
-    const permissions = _.find(this.user.permissions,
+    const permissions = _.find(
+      this.user.permissions,
       (permission) => (
         permission.scopeId === SCOPES.READ_WRITE_REPORTS
-        && permission.regionId === this.activityReport.regionId));
+        && permission.regionId === this.activityReport.regionId),
+    );
     return !_.isUndefined(permissions);
   }
 
   canReadInRegion() {
-    const permissions = _.find(this.user.permissions,
+    const permissions = _.find(
+      this.user.permissions,
       (permission) => (
         (permission.scopeId === SCOPES.READ_REPORTS
           || permission.scopeId === SCOPES.APPROVE_REPORTS
           || permission.scopeId === SCOPES.READ_WRITE_REPORTS)
-        && permission.regionId === this.activityReport.regionId));
+        && permission.regionId === this.activityReport.regionId),
+    );
     return !_.isUndefined(permissions);
   }
 
   isAdmin() {
     const adminScope = this.user.permissions.find(
       (permission) => permission.scopeId === SCOPES.ADMIN,
+    );
+    return !_.isUndefined(adminScope);
+  }
+
+  isUnlockAdmin() {
+    const adminScope = this.user.permissions.find(
+      (permission) => permission.scopeId === SCOPES.UNLOCK_APPROVED_REPORTS,
     );
     return !_.isUndefined(adminScope);
   }

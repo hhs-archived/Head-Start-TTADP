@@ -14,8 +14,8 @@ export default function AccessibleWidgetData({ caption, columnHeadings, rows }) 
   }
 
   return (
-    <div className="overflow-hidden overflow-x-scroll">
-      <table className="ttahub--accessible-widget-data usa-table usa-table--borderless">
+    <div className="overflow-hidden overflow-x-auto">
+      <table className="ttahub--accessible-widget-data usa-table usa-table--borderless usa-table--striped">
         <caption className="sr-only">
           {caption}
         </caption>

@@ -1,6 +1,5 @@
-import { APPROVER_STATUSES, REPORT_STATUSES } from '../constants';
-
 const { Model } = require('sequelize');
+const { APPROVER_STATUSES, REPORT_STATUSES } = require('../constants');
 
 /**
  * Helper function called by model hooks.
@@ -79,12 +78,13 @@ module.exports = (sequelize, DataTypes) => {
         // We allow users to create approvers before submitting the report. Calculated
         // status should only exist for submitted reports.
         if (report.submissionStatus === REPORT_STATUSES.SUBMITTED) {
-          const approverStatuses = await sequelize.models.ActivityReportApprover.findAll({
+          const foundApproverStatuses = await sequelize.models.ActivityReportApprover.findAll({
             attributes: ['status'],
             raw: true,
             where: { activityReportId: instance.activityReportId },
             transaction: options.transaction,
-          }).map((a) => a.status);
+          });
+          const approverStatuses = foundApproverStatuses.map((a) => a.status);
 
           const newCalculatedStatus = calculateReportStatus(instance.status, approverStatuses);
           await sequelize.models.ActivityReport.update({
@@ -106,12 +106,13 @@ module.exports = (sequelize, DataTypes) => {
         // We allow users to create approvers before submitting the report. Calculated
         // status should only exist for submitted reports.
         if (report.submissionStatus === REPORT_STATUSES.SUBMITTED) {
-          const approverStatuses = await sequelize.models.ActivityReportApprover.findAll({
+          const foundApproverStatuses = await sequelize.models.ActivityReportApprover.findAll({
             attributes: ['status'],
             raw: true,
             where: { activityReportId: instance.activityReportId },
             transaction: options.transaction,
-          }).map((a) => a.status);
+          });
+          const approverStatuses = foundApproverStatuses.map((a) => a.status);
 
           // Calculate status only with approvals, not this recently deleted instance
           const newCalculatedStatus = calculateReportStatusFromApprovals(approverStatuses);
@@ -135,12 +136,13 @@ module.exports = (sequelize, DataTypes) => {
         // We allow users to create approvers before submitting the report. Calculated
         // status should only exist for submitted reports.
         if (report.submissionStatus === REPORT_STATUSES.SUBMITTED) {
-          const approverStatuses = await sequelize.models.ActivityReportApprover.findAll({
+          const foundApproverStatuses = await sequelize.models.ActivityReportApprover.findAll({
             attributes: ['status'],
             raw: true,
             where: { activityReportId: instance.activityReportId },
             transaction: options.transaction,
-          }).map((a) => a.status);
+          });
+          const approverStatuses = foundApproverStatuses.map((a) => a.status);
 
           const newCalculatedStatus = calculateReportStatus(instance.status, approverStatuses);
           await sequelize.models.ActivityReport.update({
@@ -164,12 +166,13 @@ module.exports = (sequelize, DataTypes) => {
         // We allow users to create approvers before submitting the report. Calculated
         // status should only exist for submitted reports.
         if (report.submissionStatus === REPORT_STATUSES.SUBMITTED) {
-          const approverStatuses = await sequelize.models.ActivityReportApprover.findAll({
+          const foundApproverStatuses = await sequelize.models.ActivityReportApprover.findAll({
             attributes: ['status'],
             raw: true,
             where: { activityReportId: instance.activityReportId },
             transaction: options.transaction,
-          }).map((a) => a.status);
+          });
+          const approverStatuses = foundApproverStatuses.map((a) => a.status);
 
           const newCalculatedStatus = calculateReportStatus(instance.status, approverStatuses);
           await sequelize.models.ActivityReport.update({
@@ -204,17 +207,30 @@ module.exports = (sequelize, DataTypes) => {
         // We allow users to create approvers before submitting the report. Calculated
         // status should only exist for submitted reports.
         if (report.submissionStatus === REPORT_STATUSES.SUBMITTED) {
-          const approverStatuses = await sequelize.models.ActivityReportApprover.findAll({
+          const foundApproverStatuses = await sequelize.models.ActivityReportApprover.findAll({
             attributes: ['status'],
             raw: true,
             where: { activityReportId: instance.activityReportId },
             transaction: options.transaction,
-          }).map((a) => a.status);
+          });
+          const approverStatuses = foundApproverStatuses.map((a) => a.status);
 
           const newCalculatedStatus = calculateReportStatus(instance.status, approverStatuses);
-          await sequelize.models.ActivityReport.update({
+
+          /*
+           * Here we check to see if the report will be approved and update the approvedAt
+           * as appropriate
+           */
+          const approvedAt = newCalculatedStatus === REPORT_STATUSES.APPROVED ? new Date() : null;
+
+          const updatedFields = approvedAt ? {
             calculatedStatus: newCalculatedStatus,
-          }, {
+            approvedAt,
+          } : {
+            calculatedStatus: newCalculatedStatus,
+          };
+
+          await sequelize.models.ActivityReport.update(updatedFields, {
             where: { id: instance.activityReportId },
             transaction: options.transaction,
             hooks: false,

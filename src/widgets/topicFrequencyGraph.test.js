@@ -3,17 +3,17 @@ import db, {
   ActivityRecipient,
   ActivityReportCollaborator,
   User,
-  Grantee,
+  Recipient,
   Grant,
   NextStep,
   Region,
 } from '../models';
-import { filtersToScopes } from '../scopes/activityReport';
+import filtersToScopes from '../scopes';
 import { REPORT_STATUSES } from '../constants';
 import topicFrequencyGraph from './topicFrequencyGraph';
 
 const GRANT_ID = 4040;
-const GRANTEE_ID = 5050;
+const RECIPIENT_ID = 5050;
 
 const mockUser = {
   id: 9945620,
@@ -43,7 +43,7 @@ const mockUserThree = {
 };
 
 const reportObject = {
-  activityRecipientType: 'grantee',
+  activityRecipientType: 'recipient',
   submissionStatus: REPORT_STATUSES.SUBMITTED,
   calculatedStatus: REPORT_STATUSES.APPROVED,
   userId: mockUser.id,
@@ -52,14 +52,12 @@ const reportObject = {
   activityRecipients: [
     { activityRecipientId: GRANT_ID },
   ],
-  oldApprovingManagerId: 1,
   numberOfParticipants: 11,
   deliveryMethod: 'in-person',
   duration: 1,
   endDate: '2000-01-01T12:00:00Z',
   startDate: '2000-01-01T12:00:00Z',
   requester: 'requester',
-  programTypes: ['type'],
   targetPopulations: ['pop'],
   reason: ['reason'],
   participants: ['participants', 'genies'],
@@ -102,13 +100,13 @@ describe('Topics and frequency graph widget', () => {
       mockUserTwo,
       mockUserThree,
     ]);
-    await Grantee.create({ name: 'grantee', id: GRANTEE_ID });
+    await Recipient.create({ name: 'recipient', id: RECIPIENT_ID });
     await Region.create({ name: 'office 17', id: 17 });
     await Region.create({ name: 'office 18', id: 18 });
     await Grant.create({
       id: GRANT_ID,
       number: GRANT_ID,
-      granteeId: GRANTEE_ID,
+      recipientId: RECIPIENT_ID,
       regionId: 17,
       status: 'Active',
       startDate: new Date('2000/01/01'),
@@ -155,9 +153,9 @@ describe('Topics and frequency graph widget', () => {
       where:
       { id: [GRANT_ID] },
     });
-    await Grantee.destroy({
+    await Recipient.destroy({
       where:
-      { id: [GRANTEE_ID] },
+      { id: [RECIPIENT_ID] },
     });
     await Region.destroy({ where: { id: [17, 18] } });
     await ActivityReportCollaborator.destroy(

@@ -1,9 +1,12 @@
 import example from './example';
 import overview from './overview';
-import totalHrsAndGranteeGraph from './totalHrsAndGranteeGraph';
-import reasonList from './reasonList';
 import dashboardOverview from './dashboardOverview';
+import totalHrsAndRecipientGraph from './totalHrsAndRecipientGraph';
+import reasonList from './reasonList';
 import topicFrequencyGraph from './topicFrequencyGraph';
+import targetPopulationTable from './targetPopulationTable';
+import frequencyGraph from './frequencyGraph';
+import goalStatusGraph from './goalStatusGraph';
 
 /*
   All widgets need to be added to this object
@@ -11,8 +14,11 @@ import topicFrequencyGraph from './topicFrequencyGraph';
 export default {
   example,
   overview,
-  totalHrsAndGranteeGraph,
-  reasonList,
   dashboardOverview,
+  totalHrsAndRecipientGraph,
+  reasonList,
   topicFrequencyGraph,
+  targetPopulationTable,
+  frequencyGraph,
+  goalStatusGraph,
 };

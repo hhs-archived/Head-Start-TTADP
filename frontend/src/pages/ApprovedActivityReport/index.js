@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import ReactRouterPropTypes from 'react-router-prop-types';
-import { Grid } from '@trussworks/react-uswds';
-import moment from 'moment';
+import { Grid, ModalToggleButton } from '@trussworks/react-uswds';
+import { Redirect } from 'react-router-dom';
+import moment from 'moment-timezone';
 import { Helmet } from 'react-helmet';
 import Container from '../../components/Container';
 import './index.css';
 import ViewTable from './components/ViewTable';
-import { getReport } from '../../fetchers/activityReports';
-import { allRegionsUserHasPermissionTo } from '../../permissions';
+import { getReport, unlockReport } from '../../fetchers/activityReports';
+import { allRegionsUserHasPermissionTo, canUnlockReports } from '../../permissions';
+import Modal from '../../components/Modal';
+import { DATE_DISPLAY_FORMAT } from '../../Constants';
 
 /**
  *
@@ -20,7 +23,7 @@ function calculateGoalsAndObjectives(report) {
   const data = [];
 
   if (report.goals.length > 0) {
-    // assume grantee
+    // assume recipient
     const { goals } = report;
 
     goals.forEach((goal, index) => {
@@ -40,7 +43,7 @@ function calculateGoalsAndObjectives(report) {
     return [headings, data];
   }
 
-  // else, we assume non grantee
+  // else, we assume other entity
   const { objectivesWithoutGoals } = report;
   objectivesWithoutGoals.forEach((objective, index) => {
     const displayNumber = index + 1;
@@ -55,8 +58,8 @@ function calculateGoalsAndObjectives(report) {
 }
 
 function formatRequester(requester) {
-  if (requester === 'grantee') {
-    return 'Grantee';
+  if (requester === 'recipient') {
+    return 'Recipient';
   }
 
   if (requester === 'regionalOffice') {
@@ -86,11 +89,28 @@ function formatMethod(method, delivery) {
 
 function mapAttachments(attachments) {
   if (Array.isArray(attachments) && attachments.length > 0) {
-    return attachments.map((attachment) => (
-      <li>
-        <a href={attachment.url.url}>{attachment.originalFileName}</a>
-      </li>
-    ));
+    return (
+      <ul>
+        {
+          attachments.map((attachment) => (
+            <li key={attachment.url.url}>
+              <a
+                href={attachment.url.url}
+                target={attachment.originalFileName.endsWith('.txt') ? '_blank' : '_self'}
+                rel="noreferrer"
+              >
+                {
+                  `${attachment.originalFileName}
+                   ${attachment.originalFileName.endsWith('.txt')
+                    ? ' (opens in new tab)'
+                    : ''}`
+                }
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    );
   }
 
   return [];
@@ -113,34 +133,43 @@ function formatSimpleArray(arr) {
 export default function ApprovedActivityReport({ match, user }) {
   const [notAuthorized, setNotAuthorized] = useState(false);
   const [somethingWentWrong, setSomethingWentWrong] = useState(false);
-  const [displayId, setDisplayId] = useState('');
-  const [recipientType, setRecipientType] = useState('Grantee');
-  const [creator, setCreator] = useState('');
-  const [collaborators, setCollaborators] = useState([]);
-  const [approvingManagers, setApprovingManagers] = useState('');
-  const [attendees, setAttendees] = useState('');
-  const [participantCount, setParticipantCount] = useState('');
-  const [reasons, setReasons] = useState('');
-  const [programType, setProgramType] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [duration, setDuration] = useState('');
-  const [recipients, setRecipients] = useState('');
-  const [method, setMethod] = useState('');
-  const [requester, setRequester] = useState('');
-  const [topics, setTopics] = useState('');
-  const [ECLKCResources, setECLKCResources] = useState('');
-  const [nonECLKCResourcesUsed, setNonECLKCResourcesUsed] = useState('');
-  const [attachments, setAttachments] = useState([]);
-  const [context, setContext] = useState('');
-  const [goalsAndObjectiveHeadings, setGoalsAndObjectiveHeadings] = useState([]);
-  const [goalsAndObjectives, setGoalsAndObjectives] = useState([]);
-  const [managerNotes, setManagerNotes] = useState('');
-  const [creatorNotes, setCreatorNotes] = useState('');
   const [successfullyCopiedClipboard, setSuccessfullyCopiedClipboard] = useState(false);
   const [somethingWentWrongWithClipboard, setSomethingWentWrongWithClipboard] = useState(false);
-  const [granteeNextSteps, setGranteeNextSteps] = useState([]);
-  const [specialistNextSteps, setSpecialistNextSteps] = useState([]);
+  const [justUnlocked, updatedJustUnlocked] = useState(false);
+
+  const [report, setReport] = useState({
+    reportId: 0,
+    displayId: '',
+    recipientType: 'Recipient',
+    creator: '',
+    collaborators: [],
+    approvingManagers: '',
+    attendees: '',
+    participantCount: '',
+    reasons: '',
+    targetPopulations: '',
+    startDate: '',
+    endDate: '',
+    duration: '',
+    recipients: '',
+    method: '',
+    requester: '',
+    topics: '',
+    ECLKCResources: '',
+    nonECLKCResourcesUsed: '',
+    attachments: [],
+    context: '',
+    goalsAndObjectiveHeadings: [],
+    goalsAndObjectives: [],
+    managerNotes: '',
+    creatorNotes: '',
+    recipientNextSteps: [],
+    specialistNextSteps: [],
+    createdAt: '',
+    approvedAt: '',
+  });
+
+  const modalRef = useRef();
 
   useEffect(() => {
     const allowedRegions = allRegionsUserHasPermissionTo(user);
@@ -150,68 +179,97 @@ export default function ApprovedActivityReport({ match, user }) {
       return;
     }
 
-    getReport(match.params.activityReportId).then((report) => {
-      if (!allowedRegions.includes(report.regionId)) {
-        setNotAuthorized(true);
-        return;
-      }
+    async function fetchReport() {
+      try {
+        const data = await getReport(match.params.activityReportId);
 
-      // first table
-      let recipientTypeLabel = report.activityRecipients[0].grantId ? 'Grantee' : 'Non-grantee';
-      if (report.activityRecipients.length > 1) {
-        recipientTypeLabel = `${recipientTypeLabel}s`;
-      }
-      setRecipientType(recipientTypeLabel);
-      const arRecipients = report.activityRecipients.map((arRecipient) => arRecipient.name).sort().join(', ');
-      setRecipients(arRecipients);
-      setDisplayId(report.displayId);
-      setCreator(report.author.fullName);
-      setCollaborators(report.collaborators);
+        if (!allowedRegions.includes(data.regionId)) {
+          setNotAuthorized(true);
+          return;
+        }
 
-      // Approvers.
-      const approversNames = report.approvers.map((a) => a.User.fullName);
-      setApprovingManagers(approversNames.join(', '));
+        // first table
+        let recipientType = data.activityRecipients[0].grantId ? 'Recipient' : 'Other entity';
+        if (data.activityRecipients.length > 1) {
+          recipientType = data.activityRecipients[0].grantId ? 'Recipients' : 'Other entities';
+        }
 
-      // Approver Notes.
-      const approversNotes = report.approvers.map((a) => `
+        const arRecipients = data.activityRecipients.map((arRecipient) => arRecipient.name).sort().join(', ');
+        const targetPopulations = data.targetPopulations.map((population) => population).join(', '); // Approvers.
+        const approvingManagers = data.approvers.map((a) => a.User.fullName).join(', ');
+
+        // Approver Notes.
+        const managerNotes = data.approvers.map((a) => `
         <h2>${a.User.fullName}:</h2>
         ${a.note ? a.note : '<p>No manager notes</p>'}`).join('');
-      setManagerNotes(approversNotes);
 
-      setAttendees(formatSimpleArray(report.participants));
-      const newCount = report.numberOfParticipants.toString();
-      setParticipantCount(newCount);
-      setReasons(formatSimpleArray(report.reason));
-      setProgramType(formatSimpleArray(report.programTypes));
-      setStartDate(moment(report.startDate, 'MM/DD/YYYY').format('MMMM D, YYYY'));
-      setEndDate(moment(report.endDate, 'MM/DD/YYYY').format('MMMM D, YYYY'));
-      setDuration(`${report.duration} hours`);
-      setMethod(formatMethod(report.ttaType, report.virtualDeliveryType));
-      setRequester(formatRequester(report.requester));
+        const attendees = formatSimpleArray(data.participants);
+        const participantCount = data.numberOfParticipants.toString();
+        const reasons = formatSimpleArray(data.reason);
+        const startDate = moment(data.startDate, DATE_DISPLAY_FORMAT).format('MMMM D, YYYY');
+        const endDate = moment(data.endDate, DATE_DISPLAY_FORMAT).format('MMMM D, YYYY');
+        const duration = `${data.duration} hours`;
+        const method = formatMethod(data.ttaType, data.virtualDeliveryType);
+        const requester = formatRequester(data.requester);
 
-      // second table
-      setTopics(formatSimpleArray(report.topics));
-      setECLKCResources(createResourceMarkup(report.ECLKCResourcesUsed));
-      setNonECLKCResourcesUsed(createResourceMarkup(report.nonECLKCResourcesUsed));
-      setAttachments(mapAttachments(report.attachments));
+        // second table
+        const topics = formatSimpleArray(data.topics);
+        const ECLKCResources = createResourceMarkup(data.ECLKCResourcesUsed);
+        const nonECLKCResourcesUsed = createResourceMarkup(data.nonECLKCResourcesUsed);
+        const attachments = mapAttachments(data.attachments);
 
-      // third table
-      setContext(report.context);
-      const [goalHeadings, goals] = calculateGoalsAndObjectives(report);
-      setGoalsAndObjectiveHeadings(goalHeadings);
-      setGoalsAndObjectives(goals);
+        // third table
+        const {
+          context, id, displayId, additionalNotes, collaborators,
+        } = data;
+        const [goalsAndObjectiveHeadings, goalsAndObjectives] = calculateGoalsAndObjectives(data);
 
-      // next steps table
-      setSpecialistNextSteps(report.specialistNextSteps.map((step) => step.note));
-      setGranteeNextSteps(report.granteeNextSteps.map((step) => step.note));
+        // next steps table
+        const specialistNextSteps = data.specialistNextSteps.map((step) => step.note);
+        const recipientNextSteps = data.recipientNextSteps.map((step) => step.note);
+        const approvedAt = data.approvedAt ? moment(data.approvedAt).format(DATE_DISPLAY_FORMAT) : '';
+        const createdAt = moment(data.createdAt).format(DATE_DISPLAY_FORMAT);
 
-      // review and submit table
-      setCreatorNotes(report.additionalNotes);
-    }).catch((err) => {
-      // eslint-disable-next-line no-console
-      console.log(err);
-      setSomethingWentWrong(true);
-    });
+        // review and submit table
+        setReport({
+          reportId: id,
+          displayId,
+          recipientType,
+          creator: data.author.fullName,
+          collaborators,
+          approvingManagers,
+          attendees,
+          participantCount,
+          reasons,
+          targetPopulations,
+          startDate,
+          endDate,
+          duration,
+          recipients: arRecipients,
+          method,
+          requester,
+          topics,
+          ECLKCResources,
+          nonECLKCResourcesUsed,
+          attachments,
+          context,
+          goalsAndObjectiveHeadings,
+          goalsAndObjectives,
+          managerNotes,
+          creatorNotes: additionalNotes,
+          recipientNextSteps,
+          specialistNextSteps,
+          createdAt,
+          approvedAt,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.log(err);
+        setSomethingWentWrong(true);
+      }
+    }
+
+    fetchReport();
   }, [match.params.activityReportId, user]);
 
   async function handleCopyUrl() {
@@ -260,8 +318,56 @@ export default function ApprovedActivityReport({ match, user }) {
     );
   }
 
+  const {
+    reportId,
+    displayId,
+    recipientType,
+    creator,
+    collaborators,
+    approvingManagers,
+    attendees,
+    participantCount,
+    reasons,
+    targetPopulations,
+    startDate,
+    endDate,
+    duration,
+    recipients,
+    method,
+    requester,
+    topics,
+    ECLKCResources,
+    nonECLKCResourcesUsed,
+    attachments,
+    context,
+    goalsAndObjectiveHeadings,
+    goalsAndObjectives,
+    managerNotes,
+    creatorNotes,
+    recipientNextSteps,
+    specialistNextSteps,
+    createdAt,
+    approvedAt,
+  } = report;
+
+  const onUnlock = async () => {
+    await unlockReport(reportId);
+    modalRef.current.toggleModal(false);
+    updatedJustUnlocked(true);
+  };
+
+  const timezone = moment.tz.guess();
+  const time = moment().tz(timezone).format('MM/DD/YYYY [at] h:mm a z');
+  const message = {
+    time,
+    reportId,
+    displayId,
+    status: 'unlocked',
+  };
+
   return (
     <>
+      {justUnlocked && <Redirect to={{ pathname: '/activity-reports', state: { message } }} />}
       <Helmet>
         <title>
           {displayId}
@@ -298,22 +404,51 @@ export default function ApprovedActivityReport({ match, user }) {
         : null}
       <Grid row>
         {navigator && navigator.clipboard
-          ? <button type="button" className="usa-button no-print" onClick={handleCopyUrl}>Copy URL Link</button>
+          ? <button type="button" className="usa-button no-print" disabled={modalRef && modalRef.current ? modalRef.current.modalIsOpen : false} onClick={handleCopyUrl}>Copy URL Link</button>
           : null}
-        <button type="button" className="usa-button no-print" onClick={() => window.print()}>Print to PDF</button>
+        <button type="button" className="usa-button no-print" disabled={modalRef && modalRef.current ? modalRef.current.modalIsOpen : false} onClick={() => window.print()}>Print to PDF</button>
+        {user && user.permissions && canUnlockReports(user)
+          ? <ModalToggleButton type="button" className="usa-button usa-button--outline no-print" modalRef={modalRef} opener>Unlock report</ModalToggleButton>
+          : null}
       </Grid>
+      <Modal
+        modalRef={modalRef}
+        onOk={() => onUnlock()}
+        modalId="UnlockReportModal"
+        title="Unlock Activity Report"
+        okButtonText="Unlock"
+        okButtonAriaLabel="Unlock approved report will redirect to activity report page."
+      >
+        <>
+          Are you sure you want to unlock this activity report?
+          <br />
+          <br />
+          The report status will be set to
+          {' '}
+          <b>NEEDS ACTION</b>
+          {' '}
+          and
+          {' '}
+          <br />
+          must be re-submitted for approval.
+        </>
+      </Modal>
       <Container className="ttahub-activity-report-view margin-top-2">
         <h1 className="landing">
-          TTA Activity report
+          TTA activity report
           {' '}
           {displayId}
         </h1>
-        <hr />
         <div className="ttahub-activity-report-view-creator-data margin-bottom-4">
           <p>
             <strong>Creator:</strong>
             {' '}
             {creator}
+          </p>
+          <p className="no-print">
+            <strong>Date created:</strong>
+            {' '}
+            {createdAt}
           </p>
           <p>
             <strong>Collaborators:</strong>
@@ -325,6 +460,11 @@ export default function ApprovedActivityReport({ match, user }) {
             {' '}
             {approvingManagers}
           </p>
+          <p>
+            <strong>Date approved:</strong>
+            {' '}
+            {approvedAt}
+          </p>
         </div>
         <ViewTable
           caption="Activity summary"
@@ -332,7 +472,7 @@ export default function ApprovedActivityReport({ match, user }) {
             [
               recipientType,
               'Reason',
-              'Program Type',
+              'Target populations',
               'Start date',
               'End date',
               'Topics',
@@ -348,7 +488,7 @@ export default function ApprovedActivityReport({ match, user }) {
             [
               recipients,
               reasons,
-              programType,
+              targetPopulations,
               startDate,
               endDate,
               topics,
@@ -397,13 +537,13 @@ export default function ApprovedActivityReport({ match, user }) {
           headings={
             [
               'Specialist next steps',
-              "Grantee's next steps",
+              "Recipient's next steps",
             ]
           }
           data={
             [
               specialistNextSteps,
-              granteeNextSteps,
+              recipientNextSteps,
             ]
           }
         />
@@ -433,5 +573,9 @@ ApprovedActivityReport.propTypes = {
     id: PropTypes.number,
     name: PropTypes.string,
     role: PropTypes.arrayOf(PropTypes.string),
+    permissions: PropTypes.arrayOf(PropTypes.shape({
+      regionId: PropTypes.number.isRequired,
+      scopeId: PropTypes.number.isRequired,
+    })),
   }).isRequired,
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import moment from 'moment';
 import PropTypes from 'prop-types';
 import { Alert } from '@trussworks/react-uswds';
 
@@ -18,6 +19,7 @@ const Submitter = ({
   error,
   onSaveForm,
   pages,
+  lastSaveTime,
 }) => {
   const {
     additionalNotes,
@@ -25,6 +27,7 @@ const Submitter = ({
     displayId,
     calculatedStatus,
     approvers,
+    creatorRole,
   } = formData;
   const draft = calculatedStatus === REPORT_STATUSES.DRAFT;
   const submitted = calculatedStatus === REPORT_STATUSES.SUBMITTED;
@@ -94,7 +97,7 @@ const Submitter = ({
     <>
       {renderTopAlert()}
       {children}
-      <Container skipTopPadding className="margin-top-2 padding-top-2 padding-bottom-1" skipBottomPadding>
+      <Container skipTopPadding className="margin-top-2 padding-top-2" skipBottomPadding={!draft}>
         {error && (
           <Alert noIcon className="margin-y-4" type="error">
             <b>Error</b>
@@ -112,6 +115,8 @@ const Submitter = ({
               reportId={id}
               displayId={displayId}
               approverStatusList={approverStatusList}
+              lastSaveTime={lastSaveTime}
+              creatorRole={creatorRole}
             />
           )}
         {submitted
@@ -131,6 +136,7 @@ const Submitter = ({
               onSubmit={onFormSubmit}
               incompletePages={incompletePages}
               approverStatusList={approverStatusList}
+              creatorRole={creatorRole}
             />
           )}
         {approved
@@ -163,6 +169,7 @@ Submitter.propTypes = {
   formData: PropTypes.shape({
     additionalNotes: PropTypes.string,
     calculatedStatus: PropTypes.string,
+    creatorRole: PropTypes.string,
     id: PropTypes.number,
     displayId: PropTypes.string,
     approvers: PropTypes.arrayOf(
@@ -171,6 +178,8 @@ Submitter.propTypes = {
       }),
     ),
   }).isRequired,
+  lastSaveTime: PropTypes.instanceOf(moment).isRequired,
+
 };
 
 Submitter.defaultProps = {

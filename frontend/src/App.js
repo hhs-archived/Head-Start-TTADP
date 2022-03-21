@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import 'uswds/dist/css/uswds.css';
+import '@trussworks/react-uswds/lib/uswds.css';
 import '@trussworks/react-uswds/lib/index.css';
 
 import { BrowserRouter, Route, Switch } from 'react-router-dom';
@@ -11,7 +11,7 @@ import { HTTPError } from './fetchers';
 import UserContext from './UserContext';
 import SiteNav from './components/SiteNav';
 import Header from './components/Header';
-import IdleModal from './components/IdleModal';
+
 import Admin from './pages/Admin';
 import RegionalDashboard from './pages/RegionalDashboard';
 import Unauthenticated from './pages/Unauthenticated';
@@ -21,14 +21,15 @@ import Landing from './pages/Landing';
 import ActivityReport from './pages/ActivityReport';
 import LegacyReport from './pages/LegacyReport';
 import isAdmin from './permissions';
-import 'react-dates/initialize';
-import 'react-dates/lib/css/_datepicker.css';
 import './App.css';
 import LandingLayout from './components/LandingLayout';
 import RequestPermissions from './components/RequestPermissions';
 import AriaLiveContext from './AriaLiveContext';
 import AriaLiveRegion from './components/AriaLiveRegion';
 import ApprovedActivityReport from './pages/ApprovedActivityReport';
+import RecipientRecord from './pages/RecipientRecord';
+import RecipientSearch from './pages/RecipientSearch';
+import AppWrapper from './components/AppWrapper';
 
 function App() {
   const [user, updateUser] = useState();
@@ -80,66 +81,87 @@ function App() {
   const admin = isAdmin(user);
 
   const renderAuthenticatedRoutes = () => (
-    <div role="main" id="main-content">
-      <IdleModal
-        modalTimeout={Number(process.env.REACT_APP_INACTIVE_MODAL_TIMEOUT)}
-        logoutTimeout={Number(process.env.REACT_APP_SESSION_TIMEOUT)}
-        logoutUser={logout}
-      />
+    <>
       <Switch>
-
         <Route
           path="/activity-reports/legacy/:legacyId([0-9RA\-]*)"
           render={({ match }) => (
-            <LegacyReport
-              match={match}
-            />
+            <AppWrapper authenticated logout={logout}>
+              <LegacyReport
+                match={match}
+              />
+            </AppWrapper>
           )}
         />
         <Route
           exact
           path="/activity-reports"
           render={({ match }) => (
-            <LandingLayout><Landing match={match} user={user} /></LandingLayout>
+            <AppWrapper authenticated logout={logout}>
+              <LandingLayout>
+                <Landing match={match} />
+              </LandingLayout>
+            </AppWrapper>
           )}
         />
         <Route
           exact
           path="/"
-          render={() => <Home />}
+          render={() => <AppWrapper authenticated logout={logout}><Home /></AppWrapper>}
         />
         <Route
           path="/activity-reports/view/:activityReportId([0-9]*)"
           render={({ match, location }) => (
-            <ApprovedActivityReport location={location} match={match} user={user} />
+            <AppWrapper authenticated logout={logout}>
+              <ApprovedActivityReport location={location} match={match} user={user} />
+            </AppWrapper>
           )}
         />
         <Route
           path="/activity-reports/:activityReportId(new|[0-9]*)/:currentPage([a-z\-]*)?"
           render={({ match, location }) => (
-            <ActivityReport location={location} match={match} user={user} />
+            <AppWrapper authenticated logout={logout}>
+              <ActivityReport location={location} match={match} user={user} />
+            </AppWrapper>
+          )}
+        />
+        <Route
+          path="/recipient-tta-records/:recipientId([0-9]*)/region/:regionId([0-9]*)"
+          render={({ match, location }) => (
+            <AppWrapper authenticated logout={logout} padded={false}>
+              <RecipientRecord location={location} match={match} user={user} />
+            </AppWrapper>
           )}
         />
         <Route
           exact
           path="/regional-dashboard"
           render={() => (
-            <RegionalDashboard user={user} />
+            <AppWrapper authenticated logout={logout}><RegionalDashboard user={user} /></AppWrapper>
           )}
         />
         {admin && (
         <Route
           path="/admin"
           render={() => (
-            <Admin />
+            <AppWrapper authenticated logout={logout}><Admin /></AppWrapper>
           )}
         />
         )}
         <Route
-          render={() => <NotFound />}
+          exact
+          path="/recipient-tta-records"
+          render={() => (
+            <AppWrapper authenticated logout={logout}>
+              <RecipientSearch user={user} />
+            </AppWrapper>
+          )}
+        />
+        <Route
+          render={() => <AppWrapper authenticated logout={logout}><NotFound /></AppWrapper>}
         />
       </Switch>
-    </div>
+    </>
   );
 
   return (
@@ -158,17 +180,17 @@ function App() {
           <Header />
           <AriaLiveContext.Provider value={{ announce }}>
             <SiteNav admin={admin} authenticated={authenticated} logout={logout} user={user} />
-            <div className="grid-row maxw-widescreen flex-align-start smart-hub-offset-nav tablet:smart-hub-offset-nav desktop:smart-hub-offset-nav margin-top-9 margin-right-5">
-              <div className="grid-col-12 margin-top-2 margin-right-2 margin-left-3">
-                <section className="usa-section padding-top-3">
-                  {!authenticated && (authError === 403
-                    ? <RequestPermissions />
-                    : <Unauthenticated loggedOut={loggedOut} timedOut={timedOut} />
-                  )}
-                  {authenticated && renderAuthenticatedRoutes()}
-                </section>
-              </div>
-            </div>
+
+            {!authenticated && (authError === 403
+              ? <AppWrapper><RequestPermissions /></AppWrapper>
+              : (
+                <AppWrapper>
+                  <Unauthenticated loggedOut={loggedOut} timedOut={timedOut} />
+                </AppWrapper>
+              )
+            )}
+            {authenticated && renderAuthenticatedRoutes()}
+
           </AriaLiveContext.Provider>
         </UserContext.Provider>
       </BrowserRouter>

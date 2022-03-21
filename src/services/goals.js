@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+import { Op } from 'sequelize';
 import {
   Goal,
   Grant,
@@ -6,16 +8,50 @@ import {
   GrantGoal,
 } from '../models';
 
-// eslint-disable-next-line import/prefer-default-export
 export async function goalsForGrants(grantIds) {
+  /**
+   * get all the matching grants
+   */
+  const grants = await Grant.findAll({
+    attributes: ['id', 'oldGrantId'],
+    where: {
+      id: grantIds,
+    },
+  });
+
+  /**
+   * we need one big array that includes the old recipient id as well,
+   * removing all the nulls along the way
+   */
+  const ids = grants
+    .reduce((previous, current) => [...previous, current.id, current.oldGrantId], [])
+    .filter((g) => g != null);
+
+  /*
+  * finally, return all matching goals
+  */
+
   return Goal.findAll({
+    where: {
+      [Op.or]: [
+        {
+          status: 'Not Started',
+        },
+        {
+          status: 'In Progress',
+        },
+        {
+          status: null,
+        },
+      ],
+    },
     include: [
       {
         model: Grant,
         as: 'grants',
         attributes: ['id'],
         where: {
-          id: grantIds,
+          id: ids,
         },
       },
     ],
@@ -129,7 +165,8 @@ export async function saveGoalsForReport(goals, report, transaction) {
       }
 
       const savedObjective = await Objective.upsert(
-        updatedObjective, { returning: true, transaction },
+        updatedObjective,
+        { returning: true, transaction },
       );
 
       return ActivityReportObjective.create({
@@ -152,7 +189,7 @@ export async function copyGoalsToGrants(goals, grantIds, transaction) {
     grants.forEach((grant) => {
       grantGoals.push({
         grantId: grant.id,
-        granteeId: grant.granteeId,
+        recipientId: grant.recipientId,
         goalId: goal.id,
       });
     });
@@ -162,4 +199,26 @@ export async function copyGoalsToGrants(goals, grantIds, transaction) {
     ignoreDuplicates: true,
     transaction,
   });
+}
+
+export async function updateGoalStatusById(
+  goalId,
+  newStatus,
+  closeSuspendReason,
+  closeSuspendContext,
+) {
+  /* TODO:
+    Disable for now until goals are unique grants.
+  */
+  /*
+  const updatedGoal = await Goal.update(
+    {
+      status: newStatus,
+      closeSuspendReason,
+      closeSuspendContext,
+    },
+    { where: { id: goalId }, returning: true },
+  );
+  return updatedGoal[1][0];
+  */
 }

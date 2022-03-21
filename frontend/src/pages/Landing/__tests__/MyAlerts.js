@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
-import MyAlerts from '../MyAlerts';
+import MyAlerts, { ReportsRow } from '../MyAlerts';
 import activityReports from '../mocks';
 import { ALERTS_PER_PAGE } from '../../../Constants';
 
@@ -55,18 +55,18 @@ describe('My Alerts', () => {
     expect(reportIdColumnHeader).toBeVisible();
   });
 
-  test('displays grantee column', async () => {
+  test('displays recipient column', async () => {
     renderMyAlerts();
-    const granteeColumnHeader = await screen.findByRole('columnheader', {
-      name: /grantee/i,
+    const recipientColumnHeader = await screen.findByRole('columnheader', {
+      name: /recipient/i,
     });
-    expect(granteeColumnHeader).toBeVisible();
+    expect(recipientColumnHeader).toBeVisible();
   });
 
-  test('displays start date column', async () => {
+  test('displays date started column', async () => {
     renderMyAlerts();
     const startDateColumnHeader = await screen.findByRole('columnheader', {
-      name: /start date/i,
+      name: /date started/i,
     });
     expect(startDateColumnHeader).toBeVisible();
   });
@@ -91,15 +91,15 @@ describe('My Alerts', () => {
     expect(creatorColumnHeader).toBeVisible();
   });
 
-  test('displays the correct grantees', async () => {
+  test('displays the correct recipients', async () => {
     renderMyAlerts();
-    const grantees = await screen.findByRole('button', { name: /johnston-romaguera johnston-romaguera grantee name click to visually reveal the recipients for r14-ar-1/i });
-    const nonGrantees = await screen.findByRole('cell', {
+    const recipients = await screen.findByRole('button', { name: /johnston-romaguera johnston-romaguera recipient name click to visually reveal the recipients for r14-ar-1/i });
+    const otherEntity = await screen.findByRole('cell', {
       name: /qris system/i,
     });
 
-    expect(grantees).toBeVisible();
-    expect(nonGrantees).toBeVisible();
+    expect(recipients).toBeVisible();
+    expect(otherEntity).toBeVisible();
   });
 
   test('displays the correct start date', async () => {
@@ -117,10 +117,9 @@ describe('My Alerts', () => {
 
     expect(collaborators).toBeVisible();
     expect(collaborators.firstChild).toHaveClass('smart-hub--ellipsis');
-    expect(collaborators.firstChild.children.length).toBe(2);
-    expect(collaborators.firstChild.firstChild).toHaveClass('smart-hub--tooltip-truncated');
-    expect(collaborators.firstChild.firstChild).toHaveTextContent('Orange, GS');
-    expect(collaborators.firstChild.lastChild).toHaveTextContent('Hermione Granger');
+    const truncated = collaborators.firstChild.firstChild.firstChild;
+    expect(truncated).toHaveClass('smart-hub--tooltip-truncated');
+    expect(truncated).toHaveTextContent('Orange, GS');
   });
 
   test('displays the correct statuses', async () => {
@@ -130,6 +129,33 @@ describe('My Alerts', () => {
 
     expect(draft).toBeVisible();
     expect(needsAction).toBeVisible();
+  });
+
+  test('reports row shows the correct status', async () => {
+    const report = {
+      ...activityReports[0],
+      id: activityReports[0].id.toString(),
+      calculatedStatus: 'needs_action',
+    };
+
+    const message = {
+      reportId: report.id,
+      status: 'unlocked',
+    };
+    const history = createMemoryHistory();
+
+    render(
+      <Router history={history}>
+        <ReportsRow
+          reports={[...activityReports, report]}
+          removeAlert={jest.fn()}
+          message={message}
+        />
+      </Router>,
+    );
+
+    const needsAction = await screen.findAllByText(/needs action/i);
+    expect(needsAction.length).toBe(2);
   });
 
   test('displays the context menu buttons', async () => {
@@ -180,11 +206,11 @@ describe('My Alerts', () => {
           grant: {
             id: 5,
             number: '14CH00003',
-            grantee: {
+            recipient: {
               name: 'Johnston-Romaguera',
             },
           },
-          nonGrantee: null,
+          otherEntity: null,
         },
         {
           activityRecipientId: 4,
@@ -193,24 +219,24 @@ describe('My Alerts', () => {
           grant: {
             id: 4,
             number: '14CH00002',
-            grantee: {
+            recipient: {
               name: 'Johnston-Romaguera',
             },
           },
-          nonGrantee: null,
+          otherEntity: null,
         },
         {
           activityRecipientId: 1,
-          name: 'Grantee Name - 14CH1234',
+          name: 'Recipient Name - 14CH1234',
           id: 3,
           grant: {
             id: 1,
             number: '14CH1234',
-            grantee: {
-              name: 'Grantee Name',
+            recipient: {
+              name: 'Recipient Name',
             },
           },
-          nonGrantee: null,
+          otherEntity: null,
         },
       ],
       author: {
@@ -233,14 +259,10 @@ describe('My Alerts', () => {
 
     const contextMenu = await screen.findAllByTestId('ellipsis-button');
     expect(contextMenu).toBeTruthy();
-
-    const button = await screen.findByRole('button', {
-      name: 'Delete',
-    });
-
+    const button = await screen.findByRole('button', { name: /this button will permanently delete the report\./i, hidden: true });
     userEvent.click(button);
 
-    const modal = screen.queryByRole('modal');
-    expect(modal).not.toBeTruthy();
+    const modal = document.querySelector('#DeleteReportModal');
+    expect(modal).toHaveClass('is-hidden');
   });
 });

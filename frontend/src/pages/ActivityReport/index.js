@@ -39,7 +39,6 @@ const defaultValues = {
   activityRecipients: [],
   activityType: [],
   additionalNotes: null,
-  oldApprovingManagerId: null,
   attachments: [],
   collaborators: [],
   context: '',
@@ -47,15 +46,14 @@ const defaultValues = {
   duration: '',
   endDate: null,
   goals: [],
-  granteeNextSteps: [],
-  grantees: [],
+  recipientNextSteps: [],
+  recipients: [],
   nonECLKCResourcesUsed: [{ value: '' }],
   numberOfParticipants: null,
   objectivesWithoutGoals: [],
   otherResources: [],
   participantCategory: '',
   participants: [],
-  programTypes: [],
   reason: [],
   requester: '',
   specialistNextSteps: [],
@@ -77,6 +75,18 @@ const defaultPageState = mapValues(pagesByPos, () => NOT_STARTED);
  */
 export const findWhatsChanged = (object, base) => {
   function reduction(accumulator, current) {
+    if (current === 'startDate' || current === 'endDate') {
+      if (!object[current] || !moment(object[current], 'MM/DD/YYYY').isValid()) {
+        accumulator[current] = null;
+        return accumulator;
+      }
+    }
+
+    if (current === 'creatorRole' && !object[current]) {
+      accumulator[current] = null;
+      return accumulator;
+    }
+
     if (!isEqual(base[current], object[current])) {
       accumulator[current] = object[current];
     }
@@ -95,6 +105,36 @@ export const unflattenResourcesUsed = (array) => {
   return array.map((value) => ({ value }));
 };
 
+/**
+ * Goals created are editable until the report is loaded again. The report used to
+ * not update freshly created goals with their DB id once saved, but this caused
+ * any additional updates to create a brand new goal instead of updating the old goal.
+ * We now use the goal created in the DB. However this means we no longer know if the
+ * goal should be editable or not, since it was loaded from the DB. This method takes
+ * the list of newly created goals and grabs their names, placed in the `editableGoals`
+ * variable. Then all goals returned form the API (the report object passed into this
+ * method) have their name compared against the list of fresh goals. The UI then uses
+ * the `new` property to determine if a goal should be editable or not.
+ * @param {*} report the freshly updated report
+ * @returns {function} function that can be used by `setState` to update
+ * formData
+ */
+export const updateGoals = (report) => (oldFormData) => {
+  const oldGoals = oldFormData.goals || [];
+  const newGoals = report.goals || [];
+
+  const goalsThatUsedToBeNew = oldGoals.filter((goal) => goal.new);
+  const goalsFreshlySavedInDB = goalsThatUsedToBeNew.map((goal) => goal.name);
+  const goals = newGoals.map((goal) => {
+    const goalEditable = goalsFreshlySavedInDB.includes(goal.name);
+    return {
+      ...goal,
+      new: goalEditable,
+    };
+  });
+  return { ...oldFormData, goals };
+};
+
 function ActivityReport({
   match, user, location, region,
 }) {
@@ -111,6 +151,7 @@ function ActivityReport({
   const [lastSaveTime, updateLastSaveTime] = useState();
   const [showValidationErrors, updateShowValidationErrors] = useState(false);
   const [errorMessage, updateErrorMessage] = useState();
+  const [creatorNameWithRole, updateCreatorRoleWithName] = useState('');
   const reportId = useRef();
 
   const showLastUpdatedTime = (location.state && location.state.showLastUpdatedTime) || false;
@@ -127,6 +168,8 @@ function ActivityReport({
     return { ...fetchedReport, ECLKCResourcesUsed, nonECLKCResourcesUsed };
   };
 
+  const userHasOneRole = user && user.role && user.role.length === 1;
+
   useDeepCompareEffect(() => {
     const fetch = async () => {
       let report;
@@ -139,12 +182,12 @@ function ActivityReport({
         } else {
           report = {
             ...defaultValues,
+            creatorRole: userHasOneRole ? user.role[0] : null,
             pageState: defaultPageState,
             userId: user.id,
             regionId: region || getRegionWithReadWrite(user),
           };
         }
-
         const apiCalls = [
           getRecipients(report.regionId),
           getCollaborators(report.regionId),
@@ -159,11 +202,12 @@ function ActivityReport({
         const isAuthor = report.userId === user.id;
 
         // The report can be edited if its in draft OR needs_action state.
+
         const canWriteReport = (isCollaborator || isAuthor)
           && (report.calculatedStatus === REPORT_STATUSES.DRAFT
             || report.calculatedStatus === REPORT_STATUSES.NEEDS_ACTION);
-
         updateAdditionalData({ recipients, collaborators, availableApprovers });
+        updateCreatorRoleWithName(report.creatorNameWithRole);
         updateFormData(report);
 
         // ***Determine if the current user matches any of the approvers for this activity report.
@@ -251,22 +295,54 @@ function ActivityReport({
   const onSave = async (data) => {
     const approverIds = data.approvers.map((a) => a.User.id);
     if (reportId.current === 'new') {
+      const { startDate, endDate, ...fields } = data;
+      let startDateToSave = startDate;
+      if (startDateToSave === 'Invalid date' || startDateToSave === '' || !moment(startDateToSave, 'MM/DD/YYYY').isValid()) {
+        startDateToSave = null;
+      }
+
+      let endDateToSave = endDate;
+      if (endDateToSave === 'Invalid date' || endDateToSave === '' || !moment(endDateToSave, 'MM/DD/YYYY').isValid()) {
+        endDateToSave = null;
+      }
       const savedReport = await createReport(
-        { ...data, regionId: formData.regionId, approverUserIds: approverIds }, {},
+        {
+          ...fields,
+          startDate: startDateToSave,
+          endDate: endDateToSave,
+          regionId: formData.regionId,
+          approverUserIds: approverIds,
+        },
       );
+
+      /*
+        Since the new state of formData depends on the previous state we need to update
+        inside a function. See https://reactjs.org/docs/hooks-reference.html#functional-updates
+      */
+      updateFormData(updateGoals(savedReport));
       reportId.current = savedReport.id;
       window.history.replaceState(null, null, `/activity-reports/${savedReport.id}/${currentPage}`);
     } else {
       // if it isn't a new report, we compare it to the last response from the backend (formData)
       // and pass only the updated to save report
-      const updatedFields = findWhatsChanged(data, formData);
-      await saveReport(reportId.current, { ...updatedFields, approverUserIds: approverIds }, {});
+      const creatorRole = !data.creatorRole && userHasOneRole ? user.role[0] : data.creatorRole;
+      const updatedFields = findWhatsChanged({ ...data, creatorRole }, formData);
+      const updatedReport = await saveReport(
+        reportId.current, { ...updatedFields, approverUserIds: approverIds },
+        {},
+      );
+      updateFormData(updateGoals(updatedReport));
+      updateCreatorRoleWithName(updatedReport.creatorNameWithRole);
     }
   };
 
   const onFormSubmit = async (data) => {
     const approverIds = data.approvers.map((a) => a.User.id);
-    const reportToSubmit = { additionalNotes: data.additionalNotes, approverUserIds: approverIds };
+    const reportToSubmit = {
+      additionalNotes: data.additionalNotes,
+      approverUserIds: approverIds,
+      creatorRole: data.creatorRole,
+    };
     const response = await submitReport(reportId.current, reportToSubmit);
 
     updateFormData(
@@ -293,16 +369,31 @@ function ActivityReport({
   const reportCreator = { name: user.name, role: user.role };
   const tagClass = formData.calculatedStatus === REPORT_STATUSES.APPROVED ? 'smart-hub--tag-approved' : '';
 
+  const author = creatorNameWithRole ? (
+    <>
+      <hr />
+      <p>
+        <strong>Creator:</strong>
+        {' '}
+        {creatorNameWithRole}
+      </p>
+
+    </>
+  ) : null;
+
   return (
     <div className="smart-hub-activity-report">
       <Helmet titleTemplate="%s - Activity Report - TTA Hub" defaultTitle="TTA Hub - Activity Report" />
       <Grid row className="flex-justify">
         <Grid col="auto">
-          <h1 className="font-serif-2xl text-bold line-height-serif-2 margin-top-3 margin-bottom-5">
-            Activity report for Region
-            {' '}
-            {formData.regionId}
-          </h1>
+          <div className="margin-top-3 margin-bottom-5">
+            <h1 className="font-serif-2xl text-bold line-height-serif-2 margin-0">
+              Activity report for Region
+              {' '}
+              {formData.regionId}
+            </h1>
+            {author}
+          </div>
         </Grid>
         <Grid col="auto" className="flex-align-self-center">
           {formData.calculatedStatus && (

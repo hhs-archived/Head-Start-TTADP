@@ -1,16 +1,32 @@
-export const DATE_FORMAT = 'MM/DD/YYYY';
-export const DATETIME_DATE_FORMAT = 'YYYY/MM/DD';
+/* eslint-disable import/prefer-default-export */
+import {
+  regionFilter,
+  startDateFilter,
+  endDateFilter,
+  grantNumberFilter,
+  programSpecialistFilter,
+  programTypeFilter,
+  reasonsFilter,
+  recipientFilter,
+  reportIdFilter,
+  specialistRoleFilter,
+  stateCodeFilter,
+  targetPopulationsFilter,
+  topicsFilter,
+} from '../../components/filter/activityReportFilters';
 
-export const DATE_OPTIONS = [
-  {
-    label: 'Last 30 Days',
-    value: 1,
-  },
-  {
-    label: 'Custom Date Range',
-    value: 2,
-  },
+export const DASHBOARD_FILTER_CONFIG = [
+  startDateFilter,
+  endDateFilter,
+  grantNumberFilter,
+  programSpecialistFilter,
+  programTypeFilter,
+  reasonsFilter,
+  recipientFilter,
+  regionFilter,
+  reportIdFilter,
+  specialistRoleFilter,
+  stateCodeFilter,
+  targetPopulationsFilter,
+  topicsFilter,
 ];
-
-export const LAST_THIRTY_DAYS = DATE_OPTIONS[0].value;
-export const CUSTOM_DATE_RANGE = DATE_OPTIONS[1].value;
