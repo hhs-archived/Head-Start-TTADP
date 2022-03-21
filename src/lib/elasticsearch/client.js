@@ -13,26 +13,26 @@ import { getClientConfiguration } from './config';
  * @param {CreateElasticsearchClientOptions} options
  * @returns {Client}
  */
-export function createElasticsearchClient({ env, config } = {}) {
-  config = config || getClientConfiguration(env || process.env);
+export default function createElasticsearchClient({ env, config } = {}) {
+  const localConfig = config || getClientConfiguration(env || process.env);
 
-  if (!config.enabled) {
+  if (!localConfig.enabled) {
     throw new Error('Elasticsearch support is not enabled in the application.');
   }
 
   /**
    * @type {ClientOptions}
    */
-  let options = {
-    node: config.node,
+  const options = {
+    node: localConfig.node,
   };
 
-  if (config.accessKeyId && config.secretKey) {
+  if (localConfig.accessKeyId && localConfig.secretKey) {
     // We need to configure our client to connect to AWS Elasticsearch.
     // AWS will require signed requests, which we handle using a separate library.
     const credentials = new AWS.Credentials(
-      config.accessKeyId,
-      config.secretKey
+      localConfig.accessKeyId,
+      localConfig.secretKey,
     );
     Object.assign(options, createAWSConnection(credentials));
   }
