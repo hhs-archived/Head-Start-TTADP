@@ -56,6 +56,7 @@
     "docker:dbs:stop": "docker-compose -f 'docker-compose.yml' down",
     "docker:test": "./bin/run-tests",
     "docker:test:be": "docker-compose run --rm backend yarn test",
+    "docker:exportFileMetadata": "docker-compose run --rm backend yarn exportFileMetadata:local",
     "docker:lint": "docker-compose run --rm backend yarn lint:ci && docker-compose run --rm frontend yarn lint:ci",
     "docker:lint:fix": "docker-compose run --rm backend yarn lint:fix && docker-compose run --rm frontend yarn lint:fix",
     "docker:shell:frontend": "docker-compose run --rm frontend /bin/bash",
@@ -72,6 +73,8 @@
     "import:hses": "node ./build/server/tools/importGrantRecipientsCLI.js",
     "reconcile:legacy": "node ./build/server/tools/reconcileLegacyReports.js",
     "reconcile:legacy:local": "./node_modules/.bin/babel-node ./src/tools/reconcileLegacyReports.js",
+    "exportFileMetadata": "node ./build/server/tools/exportFileMetadataCLI.js",
+    "exportFileMetadata:local": "./node_modules/.bin/babel-node ./src/tools/exportFileMetadataCLI.js",
     "processData:local": "./node_modules/.bin/babel-node ./src/tools/processDataCLI.js",
     "changeReportStatus": "node ./build/server/tools/changeReportStatusCLI.js",
     "changeReportStatus:local": "./node_modules/.bin/babel-node ./src/tools/changeReportStatusCLI.js",
@@ -129,7 +132,7 @@
       "global": {
         "statements": 90,
         "functions": 90,
-        "branches": 81,
+        "branches": 80,
         "lines": 90
       }
     }
@@ -179,7 +182,6 @@
   "dependencies": {
     "@acuris/aws-es-connection": "^2.3.0",
     "@babel/runtime": "^7.12.1",
-    "@elastic/elasticsearch": "7.13.0",
     "adm-zip": "^0.5.1",
     "aws-sdk": "^2.826.0",
     "axios": "^0.24.0",
@@ -193,6 +195,7 @@
     "cucumber-html-reporter": "^5.2.0",
     "dotenv": "^10.0.0",
     "email-templates": "^8.0.4",
+    "exiftool-vendored": "^15.12.1",
     "express": "^4.17.1",
     "express-unless": "^1.0.0",
     "express-winston": "^4.0.5",
@@ -203,6 +206,7 @@
     "html-to-text": "^8.1.0",
     "http-codes": "^1.0.0",
     "lodash": "^4.17.20",
+    "md5-file": "^5.0.0",
     "moment": "^2.29.1",
     "multiparty": "^4.2.2",
     "mz": "^2.7.0",
@@ -211,6 +215,7 @@
     "pg": "^8.3.3",
     "sequelize": "^6.12.5",
     "sequelize-cli": "^6.2.0",
+    "sha256-file": "^1.0.0",
     "throng": "^5.0.0",
     "url-join": "^4.0.1",
     "uuid": "^8.3.2",

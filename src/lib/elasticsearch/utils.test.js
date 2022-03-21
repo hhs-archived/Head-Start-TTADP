@@ -1,8 +1,8 @@
-import { handleHook, modelNameToIndexName } from "./utils";
+import { handleHook, modelNameToIndexName } from './utils';
 
-describe("Elasticsearch utils", () => {
-  describe("handleHook", () => {
-    it("attaches to transaction afterCommit handler when present", () => {
+describe('Elasticsearch utils', () => {
+  describe('handleHook', () => {
+    it('attaches to transaction afterCommit handler when present', () => {
       const afterCommit = jest.fn();
       const callback = jest.fn();
       const handler = handleHook(callback);
@@ -13,7 +13,7 @@ describe("Elasticsearch utils", () => {
       expect(afterCommit).toHaveBeenCalled();
     });
 
-    it("fires immediately when no transaction", () => {
+    it('fires immediately when no transaction', () => {
       const callback = jest.fn();
       const handler = handleHook(callback);
 
@@ -23,11 +23,11 @@ describe("Elasticsearch utils", () => {
     });
   });
 
-  describe("modelNameToIndexName", () => {
+  describe('modelNameToIndexName', () => {
     [
-      ["Foo", "foo"],
-      ["FooBar", "foo_bar"],
-      ["Foo12Bar", "foo_12_bar"],
+      ['Foo', 'foo'],
+      ['FooBar', 'foo_bar'],
+      ['Foo12Bar', 'foo_12_bar'],
     ].forEach(([input, expected]) => {
       test(`${JSON.stringify(input)} --> ${JSON.stringify(expected)}`, () => {
         expect(modelNameToIndexName(input)).toBe(expected);

@@ -1,5 +1,5 @@
-import { snakeCase } from "lodash";
-import { Model, Transaction } from "sequelize";
+import { snakeCase } from 'lodash';
+// import { Model, Transaction } from 'sequelize';
 
 /**
  * Adapts a callback into a transaction-aware Sequelize hook handler.
@@ -28,4 +28,3 @@ export function handleHook(callback) {
 export function modelNameToIndexName(modelName) {
   return snakeCase(modelName);
 }
-

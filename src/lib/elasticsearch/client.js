@@ -1,6 +1,6 @@
-import { createAWSConnection } from "@acuris/aws-es-connection";
-import { Client, ClientOptions } from "@elastic/elasticsearch";
-import { getClientConfiguration } from "./config";
+import { createAWSConnection } from '@acuris/aws-es-connection';
+import { Client, ClientOptions } from '@elastic/elasticsearch';
+import { getClientConfiguration } from './config';
 
 /**
  * @typedef {Object} CreateElasticsearchClientOptions
@@ -17,7 +17,7 @@ export function createElasticsearchClient({ env, config } = {}) {
   config = config || getClientConfiguration(env || process.env);
 
   if (!config.enabled) {
-    throw new Error("Elasticsearch support is not enabled in the application.");
+    throw new Error('Elasticsearch support is not enabled in the application.');
   }
 
   /**

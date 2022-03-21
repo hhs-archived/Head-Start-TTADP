@@ -1,28 +1,29 @@
 const {
   initElasticsearchIntegration,
-} = require("..");
+} = require('..');
 
-describe("Elasticsearch", () => {
-  describe("initialization", () => {
+describe('Elasticsearch', () => {
+  describe('initialization', () => {
     const expectedModelsAndHooks = {
-      ActivityReport: ["afterDestroy", "afterSave"],
-      File: ["afterDestroy", "afterSave"],
+      ActivityReport: ['afterDestroy', 'afterSave'],
+      File: ['afterDestroy', 'afterSave'],
     };
 
     const models = Object.keys(expectedModelsAndHooks).reduce(
       (obj, modelName) => {
-        obj[modelName] = {
+        const newObj = obj;
+        newObj[modelName] = {
           addHook: jest.fn(),
         };
-        return obj;
+        return newObj;
       },
-      {}
+      {},
     );
 
     beforeAll(async () => {
       await initElasticsearchIntegration({
         env: {
-          ELASTICSEARCH_NODE: "http://elasticsearch.node:1234",
+          ELASTICSEARCH_NODE: 'http://elasticsearch.node:1234',
         },
         models,
       });
@@ -38,6 +39,6 @@ describe("Elasticsearch", () => {
       });
     });
 
-    test.todo("does not connect hooks when disabled");
+    test.todo('does not connect hooks when disabled');
   });
 });

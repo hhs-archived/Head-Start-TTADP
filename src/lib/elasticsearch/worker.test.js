@@ -1,9 +1,9 @@
-const { ActivityReport, File } = require("../../models");
-const { initElasticsearchWorker } = require("./worker");
+const { ActivityReport, File } = require('../../models');
+const { initElasticsearchWorker } = require('./worker');
 
-describe("Elasticsearch worker", () => {
-  describe("scheduleIndexModelJob", () => {
-    test("adds to queue", () => {
+describe('Elasticsearch worker', () => {
+  describe('scheduleIndexModelJob', () => {
+    test('adds to queue', () => {
       const queue = {
         add: jest.fn(),
         process: jest.fn(),
@@ -20,15 +20,15 @@ describe("Elasticsearch worker", () => {
       scheduleIndexModelJob(instance);
 
       expect(queue.add).toHaveBeenCalledTimes(1);
-      expect(queue.add).toHaveBeenCalledWith("indexModel", {
-        type: "ActivityReport",
+      expect(queue.add).toHaveBeenCalledWith('indexModel', {
+        type: 'ActivityReport',
         id: 1234,
       });
     });
   });
 
-  describe("scheduleRemoveModelJob", () => {
-    test("adds to queue", () => {
+  describe('scheduleRemoveModelJob', () => {
+    test('adds to queue', () => {
       const queue = {
         add: jest.fn(),
         process: jest.fn(),
@@ -45,27 +45,26 @@ describe("Elasticsearch worker", () => {
       scheduleRemoveModelJob(instance);
 
       expect(queue.add).toHaveBeenCalledTimes(1);
-      expect(queue.add).toHaveBeenCalledWith("removeModel", {
-        type: "ActivityReport",
+      expect(queue.add).toHaveBeenCalledWith('removeModel', {
+        type: 'ActivityReport',
         id: 1234,
       });
     });
   });
 
-  describe("processIndexModelJob", () => {
-    test("sends ActivityReport data to ES", async () => {
+  describe('processIndexModelJob', () => {
+    test('sends ActivityReport data to ES', async () => {
       const client = {
         index: jest.fn(),
       };
 
       const models = {
         ActivityReport: {
-          findByPk: (id) =>
-            Promise.resolve(
-              ActivityReport.build({
-                id,
-              })
-            ),
+          findByPk: (id) => Promise.resolve(
+            ActivityReport.build({
+              id,
+            }),
+          ),
         },
       };
 
@@ -76,7 +75,7 @@ describe("Elasticsearch worker", () => {
 
       await processIndexModelJob({
         data: {
-          type: "ActivityReport",
+          type: 'ActivityReport',
           id: 1234,
         },
       });
@@ -84,31 +83,30 @@ describe("Elasticsearch worker", () => {
       expect(client.index).toHaveBeenCalledTimes(1);
       expect(client.index).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: "1234",
-          index: "activity_report",
+          id: '1234',
+          index: 'activity_report',
           body: expect.any(Object), // TODO: More detailed check
           refresh: true,
-        })
+        }),
       );
     });
 
-    test.todo("fails correctly when ActivityReport not found on save");
+    test.todo('fails correctly when ActivityReport not found on save');
   });
 
-  describe("processRemoveModelJob", () => {
-    test("removes ActivityReport data on delete", async () => {
+  describe('processRemoveModelJob', () => {
+    test('removes ActivityReport data on delete', async () => {
       const client = {
         delete: jest.fn(),
       };
 
       const models = {
         ActivityReport: {
-          findByPk: (id) =>
-            Promise.resolve(
-              ActivityReport.build({
-                id,
-              })
-            ),
+          findByPk: (id) => Promise.resolve(
+            ActivityReport.build({
+              id,
+            }),
+          ),
         },
       };
 
@@ -119,26 +117,26 @@ describe("Elasticsearch worker", () => {
 
       await processRemoveModelJob({
         data: {
-          type: "ActivityReport",
+          type: 'ActivityReport',
           id: 1234,
         },
       });
 
       expect(client.delete).toHaveBeenCalledWith({
-        id: "1234",
-        index: "activity_report",
+        id: '1234',
+        index: 'activity_report',
         refresh: true,
       });
     });
-    test.todo("does not throw when ActivityReport not found on save");
+    test.todo('does not throw when ActivityReport not found on save');
   });
 
-  describe("File support", () => {
+  describe('File support', () => {
     [
-      ["scheduleIndexFileJob", "indexFile"],
-      ["scheduleRemoveFileJob", "removeFile"],
+      ['scheduleIndexFileJob', 'indexFile'],
+      ['scheduleRemoveFileJob', 'removeFile'],
     ].forEach(([funcName, jobName]) => {
-      test(funcName, () => {
+      test(`${funcName}`, () => {
         const file = File.build({
           id: 1234,
         });
@@ -160,27 +158,27 @@ describe("Elasticsearch worker", () => {
       });
     });
 
-    describe("processIndexFileJob", () => {
+    describe('processIndexFileJob', () => {
       [
-        "UPLOADING",
-        "UPLOADED",
-        "UPLOAD_FAILED",
-        "QUEUEING_FAILED",
-        "SCANNING_QUEUED",
-        "SCANNING",
-        "SCANNING_FAILED",
-        "REJECTED",
+        'UPLOADING',
+        'UPLOADED',
+        'UPLOAD_FAILED',
+        'QUEUEING_FAILED',
+        'SCANNING_QUEUED',
+        'SCANNING',
+        'SCANNING_FAILED',
+        'REJECTED',
       ].forEach((status) => {
-        describe(status, () => {
-          test.todo(`fails`);
+        describe(`${status}`, () => {
+          test.todo('fails');
         });
       });
 
-      describe("APPROVED", () => {
-        test("succeeds", async () => {
+      describe('APPROVED', () => {
+        test('succeeds', async () => {
           const downloadFile = jest.fn();
           downloadFile.mockResolvedValue({
-            Body: Buffer.from("hello world", "utf-8"),
+            Body: Buffer.from('hello world', 'utf-8'),
           });
 
           const client = {
@@ -192,45 +190,44 @@ describe("Elasticsearch worker", () => {
             downloadFile,
             models: {
               File: {
-                findByPk: (id) =>
-                  Promise.resolve(
-                    File.build({
-                      id,
-                      activityReportId: 99,
-                      key: "test/key",
-                    })
-                  ),
+                findByPk: (id) => Promise.resolve(
+                  File.build({
+                    id,
+                    activityReportId: 99,
+                    key: 'test/key',
+                  }),
+                ),
               },
             },
           });
 
           await processIndexFileJob({
-            name: "",
+            name: '',
             data: {
               id: 1234,
             },
           });
 
-          expect(downloadFile).toHaveBeenCalledWith("test/key");
+          expect(downloadFile).toHaveBeenCalledWith('test/key');
 
           expect(client.index).toHaveBeenCalledTimes(1);
 
           expect(client.index).toHaveBeenCalledWith({
-            index: "file",
-            id: "1234",
+            index: 'file',
+            id: '1234',
             body: {
-              activityReportId: "99",
-              data: "aGVsbG8gd29ybGQ=",
+              activityReportId: '99',
+              data: 'aGVsbG8gd29ybGQ=',
             },
-            pipeline: "File",
+            pipeline: 'File',
             refresh: true,
           });
         });
       });
     });
 
-    describe("processRemoveFileJob", () => {
-      test("deletes files", async () => {
+    describe('processRemoveFileJob', () => {
+      test('deletes files', async () => {
         const client = {
           delete: jest.fn(),
         };
@@ -240,23 +237,23 @@ describe("Elasticsearch worker", () => {
         });
 
         await processRemoveFileJob({
-          name: "removeFile",
+          name: 'removeFile',
           data: {
             id: 1234,
           },
         });
 
         expect(client.delete).toHaveBeenCalledWith({
-          index: "file",
-          id: "1234",
+          index: 'file',
+          id: '1234',
           refresh: true,
         });
       });
     });
   });
 
-  describe("startElasticsearchWorker", () => {
-    test("runs correct jobs", () => {
+  describe('startElasticsearchWorker', () => {
+    test('runs correct jobs', () => {
       const queue = {
         add: jest.fn(),
         process: jest.fn(),
@@ -268,7 +265,7 @@ describe("Elasticsearch worker", () => {
         processRemoveModelJob,
         startElasticsearchWorker,
       } = initElasticsearchWorker({
-        env: { ELASTICSEARCH_NODE: "http://elasticsearch.node:1234" },
+        env: { ELASTICSEARCH_NODE: 'http://elasticsearch.node:1234' },
         queue,
       });
 
@@ -276,20 +273,20 @@ describe("Elasticsearch worker", () => {
 
       expect(queue.process).toHaveBeenCalledTimes(4);
       expect(queue.process).toHaveBeenCalledWith(
-        "indexModel",
-        processIndexModelJob
+        'indexModel',
+        processIndexModelJob,
       );
       expect(queue.process).toHaveBeenCalledWith(
-        "removeModel",
-        processRemoveModelJob
+        'removeModel',
+        processRemoveModelJob,
       );
       expect(queue.process).toHaveBeenCalledWith(
-        "indexFile",
-        processIndexFileJob
+        'indexFile',
+        processIndexFileJob,
       );
       expect(queue.process).toHaveBeenCalledWith(
-        "removeFile",
-        processRemoveFileJob
+        'removeFile',
+        processRemoveFileJob,
       );
     });
   });

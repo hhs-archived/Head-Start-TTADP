@@ -1,18 +1,23 @@
-import { ActivityReport, Grantee, User, sequelize } from "../../../models";
-import { REPORT_STATUSES } from "../../../constants";
-import { initElasticsearchIntegration } from "..";
+import {
+  ActivityReport,
+  Grantee,
+  User,
+  sequelize,
+} from '../../../models';
+import { REPORT_STATUSES } from '../../../constants';
+import { initElasticsearchIntegration } from '..';
 
 const USERS = {
   user: {
     id: 3000,
-    hsesUsername: "user",
-    hsesUserId: "3000",
+    hsesUsername: 'user',
+    hsesUserId: '3000',
     homeRegionId: 1,
   },
   manager: {
     id: 3001,
-    hsesUsername: "manager",
-    hsesUserId: "3001",
+    hsesUsername: 'manager',
+    hsesUserId: '3001',
     homeRegionId: 2,
   },
 };
@@ -27,47 +32,47 @@ const REPORTS = {
   report1: {
     id: 3020,
     activityRecipients: [{ activityRecipientId: GRANTEES.grantee1.id }],
-    activityRecipientType: "grantee",
+    activityRecipientType: 'grantee',
     approvingManagerId: USERS.manager.id,
-    deliveryMethod: "in-person",
+    deliveryMethod: 'in-person',
     duration: 1,
-    ECLKCResourcesUsed: ["test"],
-    endDate: "2000-01-01T12:00:00Z",
+    ECLKCResourcesUsed: ['test'],
+    endDate: '2000-01-01T12:00:00Z',
     lastUpdatedById: USERS.user.id,
     numberOfParticipants: 11,
-    participants: ["participants", "genies"],
-    programTypes: ["type"],
-    reason: ["here is a unique word for search purposes: rutabaga"],
-    requester: "requester",
+    participants: ['participants', 'genies'],
+    programTypes: ['type'],
+    reason: ['here is a unique word for search purposes: rutabaga'],
+    requester: 'requester',
     regionId: 1,
-    startDate: "2000-01-01T12:00:00Z",
+    startDate: '2000-01-01T12:00:00Z',
     status: REPORT_STATUSES.APPROVED,
-    targetPopulations: ["pop"],
-    topics: ["Program Planning and Services"],
-    ttaType: ["technical-assistance"],
+    targetPopulations: ['pop'],
+    topics: ['Program Planning and Services'],
+    ttaType: ['technical-assistance'],
     userId: USERS.user.id,
   },
   report2: {
     id: 3021,
     activityRecipients: [{ activityRecipientId: GRANTEES.grantee1.id }],
-    activityRecipientType: "grantee",
+    activityRecipientType: 'grantee',
     approvingManagerId: USERS.manager.id,
-    deliveryMethod: "in-person",
+    deliveryMethod: 'in-person',
     duration: 1,
-    ECLKCResourcesUsed: ["test"],
-    endDate: "2000-01-01T12:00:00Z",
+    ECLKCResourcesUsed: ['test'],
+    endDate: '2000-01-01T12:00:00Z',
     lastUpdatedById: USERS.user.id,
     numberOfParticipants: 11,
-    participants: ["participants", "genies"],
-    programTypes: ["type"],
-    reason: ["here is a unique word for search purposes: kumquat"],
-    requester: "requester",
+    participants: ['participants', 'genies'],
+    programTypes: ['type'],
+    reason: ['here is a unique word for search purposes: kumquat'],
+    requester: 'requester',
     regionId: 1,
-    startDate: "2000-01-01T12:00:00Z",
+    startDate: '2000-01-01T12:00:00Z',
     status: REPORT_STATUSES.APPROVED,
-    targetPopulations: ["pop"],
-    topics: ["Program Planning and Services"],
-    ttaType: ["technical-assistance"],
+    targetPopulations: ['pop'],
+    topics: ['Program Planning and Services'],
+    ttaType: ['technical-assistance'],
     userId: USERS.user.id,
   },
 };
@@ -95,23 +100,25 @@ async function deleteFixtures(removeModel) {
           id: Object.values(data).map(({ id }) => id),
         },
       });
-    })
+    }),
   );
 
   if (removeModel) {
     await Promise.all(
       Object.values(REPORTS)
         .map((values) => ActivityReport.build(values))
-        .map((instance) => removeModel(instance))
+        .map((instance) => removeModel(instance)),
     );
   }
 }
 
-describe("Real live Elasticsearch", () => {
-  const { enabled, indexModel, removeModel, searchActivityReports } =
-    initElasticsearchIntegration();
-
-  const t = enabled ? test : test.skip;
+describe('Real live Elasticsearch', () => {
+  const {
+    enabled,
+    indexModel,
+    removeModel,
+    searchActivityReports,
+  } = initElasticsearchIntegration();
 
   beforeAll(async () => {
     await deleteFixtures();
@@ -119,24 +126,25 @@ describe("Real live Elasticsearch", () => {
   });
 
   afterAll(deleteFixtures.bind(undefined, removeModel));
+  if (enabled) {
+    test('can index + delete an ActivityReport', async () => {
+      const report = await ActivityReport.create(REPORTS.report1, {
+        hooks: false,
+      });
 
-  t("can index + delete an ActivityReport", async () => {
-    const report = await ActivityReport.create(REPORTS.report1, {
-      hooks: false,
+      await indexModel(report);
+
+      const found = await searchActivityReports('rutabaga');
+
+      expect(found.body.hits.hits.map(({ _id }) => _id)).toEqual([
+        REPORTS.report1.id.toString(),
+      ]);
+
+      await removeModel(report);
+
+      const foundAfterRemove = await searchActivityReports('rutabaga');
+
+      expect(foundAfterRemove.body.hits.hits.map(({ _id }) => _id)).toEqual([]);
     });
-
-    await indexModel(report);
-
-    const found = await searchActivityReports("rutabaga");
-
-    expect(found.body.hits.hits.map(({ _id }) => _id)).toEqual([
-      REPORTS.report1.id.toString(),
-    ]);
-
-    await removeModel(report);
-
-    const foundAfterRemove = await searchActivityReports("rutabaga");
-
-    expect(foundAfterRemove.body.hits.hits.map(({ _id }) => _id)).toEqual([]);
-  });
+  }
 });

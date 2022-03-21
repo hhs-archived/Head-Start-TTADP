@@ -3,7 +3,7 @@
 /* eslint-disable import/first */
 import app from './app';
 import { auditLogger } from './logger';
-import { initElasticsearchIntegration  } from './lib/elasticsearch';
+import { initElasticsearchIntegration } from './lib/elasticsearch';
 /* eslint-enable import/first */
 
 initElasticsearchIntegration();
