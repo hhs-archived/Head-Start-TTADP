@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { isArray } from 'lodash';
 import FilterMenu from './FilterMenu';
 import FilterPills from './FilterPills';
 import { filterConfigProp, filterProp } from './props';
+import { filtersContainAllRegions } from '../../pages/regionHelpers';
 
 export default function FilterPanel({
   onRemoveFilter,
@@ -17,21 +17,7 @@ export default function FilterPanel({
 
   useEffect(() => {
     // Determine if filters contain all regions.
-    const passedRegionFilters = filters.filter((f) => f.topic === 'region').map((r) => {
-      if (isArray(r.query)) {
-        return parseInt(r.query[0], 10);
-      }
-      return r.query;
-    });
-
-    let containsAllRegions = true;
-    if (allUserRegions) {
-      allUserRegions.forEach((r) => {
-        if (!passedRegionFilters.includes(r)) {
-          containsAllRegions = false;
-        }
-      });
-    }
+    const containsAllRegions = filtersContainAllRegions(filters, allUserRegions);
     // Hide or Show Region Filters.
     setFiltersToShow(containsAllRegions ? filters.filter((f) => f.topic !== 'region') : filters);
   }, [filters, allUserRegions]);

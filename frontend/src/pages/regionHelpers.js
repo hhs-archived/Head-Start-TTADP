@@ -1,5 +1,6 @@
 /* eslint-disable import/prefer-default-export */
 import { v4 as uuidv4 } from 'uuid';
+import { isArray } from 'lodash';
 
 export function buildDefaultRegionFilters(regions) {
   const allRegionFilters = [];
@@ -27,4 +28,23 @@ export function showFilterWithMyRegions(allRegionsFilters, filters, setFilters) 
   } else {
     setFilters(newFilters);
   }
+}
+
+export function filtersContainAllRegions(filters, allUserRegions) {
+  const passedRegionFilters = filters.filter((f) => f.topic === 'region').map((r) => {
+    if (isArray(r.query)) {
+      return parseInt(r.query[0], 10);
+    }
+    return r.query;
+  });
+
+  let containsAllRegions = true;
+  if (allUserRegions) {
+    allUserRegions.forEach((r) => {
+      if (!passedRegionFilters.includes(r)) {
+        containsAllRegions = false;
+      }
+    });
+  }
+  return containsAllRegions;
 }

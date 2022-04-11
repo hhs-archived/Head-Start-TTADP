@@ -32,7 +32,7 @@ import useSessionFiltersAndReflectInUrl from '../../hooks/useSessionFiltersAndRe
 import { LANDING_BASE_FILTER_CONFIG, LANDING_FILTER_CONFIG_WITH_REGIONS } from './constants';
 import FilterContext from '../../FilterContext';
 import RegionPermissionModal from '../../components/RegionPermissionModal';
-import { buildDefaultRegionFilters, showFilterWithMyRegions } from '../regionHelpers';
+import { buildDefaultRegionFilters, showFilterWithMyRegions, filtersContainAllRegions } from '../regionHelpers';
 
 const defaultDate = formatDateRange({
   lastThirtyDays: true,
@@ -99,6 +99,7 @@ function Landing() {
   const [reportAlerts, updateReportAlerts] = useState([]);
   const [error, updateError] = useState();
   const [showAlert, updateShowAlert] = useState(true);
+  const [regionHeader, setRegionHeader] = useState();
 
   const [alertsSortConfig, setAlertsSortConfig] = React.useState({
     sortBy: 'startDate',
@@ -206,16 +207,26 @@ function Landing() {
       </>
     );
   }
-
-  const regionLabel = () => {
+  useEffect(() => {
+    console.log('In New Use Effect!', defaultRegion, hasMultipleRegions);
+    let newRegionHeader = '';
     if (defaultRegion === 14) {
-      return 'All regions';
+      newRegionHeader = 'All regions';
     }
-    if (defaultRegion > 0) {
-      return `Region ${defaultRegion.toString()}`;
+
+    // If we have no region filter.
+    // And the user has multiple regions.
+    // Show comma separated list of regions being shown.
+    const containsAllRegions = filtersContainAllRegions(filters, regions);
+    if (hasMultipleRegions && containsAllRegions) {
+      newRegionHeader = `Regions ${regions.join(', ')}`;
+    } else if (defaultRegion > 0) {
+      newRegionHeader = `Region ${defaultRegion.toString()}`;
     }
-    return '';
-  };
+
+    console.log('Set:', regions, newRegionHeader);
+    setRegionHeader(newRegionHeader);
+  }, [defaultRegion, hasMultipleRegions, regions, filters]);
 
   // Apply filters.
   const onApply = (newFilters, addBackDefaultRegions) => {
@@ -288,7 +299,7 @@ function Landing() {
         )}
         <Grid row gap>
           <Grid>
-            <h1 className="landing">{`Activity reports - ${regionLabel()}`}</h1>
+            <h1 className="landing">{`Activity reports - ${regionHeader}`}</h1>
           </Grid>
           <Grid className="grid-col-2 flex-align-self-center">
             {reportAlerts
@@ -311,7 +322,7 @@ function Landing() {
         <Grid row gap className="smart-hub--overview">
           <Grid col={10}>
             <Overview
-              regionLabel={regionLabel}
+              regionLabel={regionHeader}
               tableCaption="TTA overview"
               filters={filtersToApply}
             />
