@@ -90,7 +90,6 @@ function BarGraph({ data, yAxisLabel, xAxisLabel }) {
       xaxis: {
         automargin: true,
         fixedrange: true,
-        tickangle: 0,
       },
       yaxis: {
         tickformat: ',.0d',

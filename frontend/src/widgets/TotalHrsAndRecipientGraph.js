@@ -124,7 +124,6 @@ export function TotalHrsAndRecipientGraph({ data, loading }) {
       showlegend: false,
       xaxis: {
         automargin: false,
-        tickangle: 0,
         showgrid: false,
         b: 0,
         t: 0,

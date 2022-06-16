@@ -6,14 +6,14 @@ import Loader from './Loader';
 const classes = 'bg-white radius-md shadow-2 margin-bottom-3';
 
 function Container({
-  children, className, padding, skipTopPadding, skipBottomPadding, loading, loadingLabel,
+  children, innerRef, className, padding, skipTopPadding, skipBottomPadding, loading, loadingLabel,
 }) {
   const skipTop = skipTopPadding ? 'padding-top-0' : '';
   const skipBottom = skipBottomPadding ? 'padding-bottom-0' : '';
   return (
     <div className={`${classes} ${className} position-relative`}>
       <Loader loading={loading} loadingLabel={loadingLabel} />
-      <div className={`padding-${padding} ${skipTop} ${skipBottom}`}>
+      <div ref={innerRef} className={`padding-${padding} ${skipTop} ${skipBottom}`}>
         {children}
       </div>
     </div>

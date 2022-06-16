@@ -109,7 +109,7 @@ export default function DropdownMenu({
   }
 
   return (
-    <div ref={forwardedRef} className={classNames}>
+    <div ref={forwardedRef} className={classNames} data-html2canvas-ignore="true">
       <button
         onClick={onClick}
         className={`${buttonClasses} smart-hub--dropdown-menu-toggle-btn display-flex margin-0 no-print`}

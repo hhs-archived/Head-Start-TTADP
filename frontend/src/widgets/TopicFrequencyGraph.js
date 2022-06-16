@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import Plotly from 'plotly.js-basic-dist';
 import { Grid } from '@trussworks/react-uswds';
+import { useScreenshot, createFileName } from 'use-react-screenshot';
+
 import withWidgetData from './withWidgetData';
 import Container from '../components/Container';
 import AccessibleWidgetData from './AccessibleWidgetData';
@@ -56,14 +58,28 @@ export function TopicFrequencyGraphWidget({
 }) {
   // whether to show the data as accessible widget data or not
   const [showAccessibleData, setShowAccessibleData] = useState(false);
-
+  const ref = useRef();
+  const [image, takeScreenshot] = useScreenshot();
   // where the table data lives
   const [columnHeadings, setColumnHeadings] = useState([]);
   const [tableRows, setTableRows] = useState([]);
 
+  const download = (i, { name = 'img', extension = 'png' } = {}) => {
+    const a = document.createElement('a');
+    a.href = i;
+    a.download = createFileName(extension, name);
+    a.click();
+  };
+
+  useEffect(() => {
+    if (image) {
+      download(image, { name: 'lorem-ipsum', extension: 'png' });
+    }
+  }, [image]);
+
   // the order the data is displayed in the chart
   const [order, setOrder] = useState(SORT_ORDER.DESC);
-
+  const getImage = () => takeScreenshot(ref.current);
   // the dom el for drawing the chart
   const bars = useRef();
 
@@ -147,7 +163,6 @@ export function TopicFrequencyGraphWidget({
           },
         },
       },
-      hovermode: 'none',
     };
 
     // draw the plot
@@ -172,24 +187,28 @@ export function TopicFrequencyGraphWidget({
   }
 
   return (
-    <Container className="ttahub--topic-frequency-graph overflow-x-scroll" padding={3} loading={loading} loadingLabel="Topic frequency loading">
-      <Grid row className="position-relative margin-bottom-2">
-        <Grid className="flex-align-self-center" desktop={{ col: 'auto' }} mobileLg={{ col: 8 }}>
-          <h2 className="ttahub--dashboard-widget-heading margin-0">Number of Activity Reports by Topic</h2>
-        </Grid>
-        <Grid col="auto" gap={1} className="ttahub--topic-frequency-graph-control-row desktop:display-flex desktop:padding-x-2">
-          <ButtonSelect
-            styleAsSelect
-            labelId="tfGraphOrder"
-            labelText="Change topic graph order"
-            ariaName="Change topic graph order menu"
-            initialValue={{
-              value: SORT_ORDER.DESC,
-              label: 'High to Low',
-            }}
-            applied={order}
-            onApply={onApplySort}
-            options={
+      <Container innerRef={ref} className="ttahub--topic-frequency-graph overflow-x-scroll" padding={3} loading={loading} loadingLabel="Topic frequency loading">
+
+        <button style={{ marginBottom: '10px' }} onClick={getImage}>
+          Take screenshot
+        </button>
+        <Grid row className="position-relative margin-bottom-2">
+          <Grid className="flex-align-self-center" desktop={{ col: 'auto' }} mobileLg={{ col: 8 }}>
+            <h2 className="ttahub--dashboard-widget-heading margin-0">Number of Activity Reports by Topic</h2>
+          </Grid>
+          <Grid col="auto" gap={1} className="ttahub--topic-frequency-graph-control-row desktop:display-flex desktop:padding-x-2">
+            <ButtonSelect
+              styleAsSelect
+              labelId="tfGraphOrder"
+              labelText="Change topic graph order"
+              ariaName="Change topic graph order menu"
+              initialValue={{
+                value: SORT_ORDER.DESC,
+                label: 'High to Low',
+              }}
+              applied={order}
+              onApply={onApplySort}
+              options={
               [
                 {
                   value: SORT_ORDER.DESC,
@@ -201,25 +220,25 @@ export function TopicFrequencyGraphWidget({
                 },
               ]
             }
-          />
-        </Grid>
-        <Grid desktop={{ col: 'auto' }} className="ttahub--show-accessible-data-button desktop:margin-y-0 mobile-lg:margin-y-1">
-          <button
-            type="button"
-            className="usa-button--unstyled margin-top-2"
-            aria-label={showAccessibleData ? 'display number of activity reports by topic data as graph' : 'display number of activity reports by topic data as table'}
-            onClick={toggleType}
-          >
-            {showAccessibleData ? 'Display graph' : 'Display table'}
-          </button>
-        </Grid>
+            />
+          </Grid>
+          <Grid desktop={{ col: 'auto' }} className="ttahub--show-accessible-data-button desktop:margin-y-0 mobile-lg:margin-y-1">
+            <button
+              type="button"
+              className="usa-button--unstyled margin-top-2"
+              aria-label={showAccessibleData ? 'display number of activity reports by topic data as graph' : 'display number of activity reports by topic data as table'}
+              onClick={toggleType}
+            >
+              {showAccessibleData ? 'Display graph' : 'Display table'}
+            </button>
+          </Grid>
 
-      </Grid>
-      { showAccessibleData
-        ? <AccessibleWidgetData caption="Number of Activity Reports by Topic Table" columnHeadings={columnHeadings} rows={tableRows} />
-        : <div data-testid="bars" className="tta-dashboard--bar-graph-container" ref={bars} /> }
+        </Grid>
+        { showAccessibleData
+          ? <AccessibleWidgetData caption="Number of Activity Reports by Topic Table" columnHeadings={columnHeadings} rows={tableRows} />
+          : <div data-testid="bars" className="tta-dashboard--bar-graph-container" ref={bars} /> }
 
-    </Container>
+      </Container>
   );
 }
 
