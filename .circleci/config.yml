@@ -274,10 +274,15 @@ jobs:
       - run:
           name: Test frontend
           command: yarn --cwd frontend run test:ci --maxWorkers=50%
+      - run:
+          name: Compress coverage artifacts
+          command: tar -cvzf coverage-artifacts.tar frontend/coverage/
       - store_test_results:
           path: frontend/reports/
       - store_artifacts:
           path: frontend/coverage/
+      - store_artifacts:
+          path: coverage-artifacts.tar
   cucumber_test:
     executor: docker-postgres-executor
     steps:
