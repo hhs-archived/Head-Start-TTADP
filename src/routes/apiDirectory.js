@@ -40,6 +40,7 @@ router.use((req, res, next) => {
     httpContext.set('loggedUser', userId);
     httpContext.set('transactionId', transactionId);
     httpContext.set('sessionSig', uuid);
+    httpContext.set('auditDescriptor', req.path);
   } catch (err) {
     auditLogger.error(err);
   }
