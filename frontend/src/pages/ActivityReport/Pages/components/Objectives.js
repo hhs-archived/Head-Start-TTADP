@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useFieldArray, useFormContext } from 'react-hook-form/dist/index.ie11';
 import Objective from './Objective';
@@ -13,7 +13,9 @@ export default function Objectives({
   onSaveDraft,
   reportId,
 }) {
-  const { errors, getValues, setValue } = useFormContext();
+  const {
+    errors, getValues, setValue,
+  } = useFormContext();
 
   const fieldArrayName = 'goalForEditing.objectives';
   const objectivesForGoal = getValues(fieldArrayName);
@@ -35,11 +37,22 @@ export default function Objectives({
     defaultValues,
   });
 
+  const [initialSelectCompleted, setInitialSelectCompleted] = useState(fields.length >= 1);
+  useEffect(() => {
+    // Check if we should show add objective button.
+    if (!initialSelectCompleted && fields.length >= 1) {
+      setInitialSelectCompleted(true);
+    }
+  }, [initialSelectCompleted, fields.length]);
+
+  console.log('Show Add', initialSelectCompleted, fields.length > 1, fields);
+
   const [usedObjectiveIds, setUsedObjectiveIds] = useState(
     fields ? fields.map(({ value }) => value) : [],
   );
 
   const onAddNew = () => {
+    console.log('Add New');
     append({ ...NEW_OBJECTIVE() });
   };
 
@@ -54,7 +67,9 @@ export default function Objectives({
   };
 
   const onInitialObjSelect = (objective) => {
+    console.log('On Initial', objective);
     append(objective);
+    setInitialSelectCompleted(true);
 
     // If fields have changed get updated list of used Objective ID's.
     setUpdatedUsedObjectiveIds();
@@ -112,8 +127,8 @@ export default function Objectives({
         )
         : fields.map((objective, index) => {
           const objectiveErrors = errors.goalForEditing
-          && errors.goalForEditing.objectives
-          && errors.goalForEditing.objectives[index]
+            && errors.goalForEditing.objectives
+            && errors.goalForEditing.objectives[index]
             ? errors.goalForEditing.objectives[index]
             : {};
 
@@ -135,7 +150,9 @@ export default function Objectives({
             />
           );
         })}
-      <PlusButton text="Add new objective" onClick={onAddNew} />
+      <div style={{ display: initialSelectCompleted ? 'inline-block' : 'none' }}>
+        <PlusButton text="Add new objective" onClick={onAddNew} />
+      </div>
     </>
   );
 }
