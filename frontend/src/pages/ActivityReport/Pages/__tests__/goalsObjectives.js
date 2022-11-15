@@ -171,6 +171,10 @@ describe('goals objectives', () => {
       const [button] = await screen.findAllByRole('button', { name: 'Edit' });
       act(() => userEvent.click(button));
       expect(toggleGoalForm).toHaveBeenCalledWith(false);
+
+      // the readonly goal should be removed from the page
+      // https://github.com/HHS/Head-Start-TTADP/pull/1154/commits/2b1d51c9e31dd21fe99ad185e7fd01a4235a4800
+      expect(screen.queryByRole('button', { name: /actions for goal 1/i })).toBeNull();
     });
 
     it('you can remove a goal', async () => {
