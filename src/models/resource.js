@@ -4,10 +4,7 @@ const { beforeValidate } = require('./hooks/resource');
 module.exports = (sequelize, DataTypes) => {
   class Resource extends Model {
     static associate(models) {
-      Resource.hasMany(models.ActivityReportResource, { foreignKey: 'resourceId', as: 'activityReportResources' });
-      Resource.hasMany(models.ActivityReportObjectiveResource, { foreignKey: 'resourceId', as: 'activityReportObjectiveResources' });
-      Resource.hasMany(models.NextStepResource, { foreignKey: 'resourceId', as: 'nextStepResources' });
-      Resource.hasMany(models.ObjectiveResource, { foreignKey: 'resourceId', as: 'objectiveResources' });
+      Resource.hasMany(models.EntityResource, { foreignKey: 'resourceId', as: 'entityResources' });
     }
   }
   Resource.init({

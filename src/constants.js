@@ -6,6 +6,17 @@ export const REPORT_STATUSES = {
   NEEDS_ACTION: 'needs_action',
 };
 
+export const ENTITY_TYPES = {
+  REPORT: 'report',
+  REPORTGOAL: 'report_goal',
+  REPORTOBJECTIVE: 'report_objective',
+  NEXTSTEP: 'nextstep',
+  GOAL: 'goal',
+  GOALTEMPLATE: 'goal_template',
+  OBJECTIVE: 'objective',
+  OBJECTIVETEMPLATE: 'objectiveTemplate',
+};
+
 export const FILE_STATUSES = {
   UPLOADING: 'UPLOADING',
   UPLOADED: 'UPLOADED',

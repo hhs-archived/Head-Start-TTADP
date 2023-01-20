@@ -1,4 +1,5 @@
 const { Model } = require('sequelize');
+const { ENTITY_TYPES } = require('../constants');
 const { beforeDestroy, afterDestroy } = require('./hooks/activityReportObjective');
 
 module.exports = (sequelize, DataTypes) => {
@@ -8,7 +9,25 @@ module.exports = (sequelize, DataTypes) => {
       ActivityReportObjective.belongsTo(models.Objective, { foreignKey: 'objectiveId', as: 'objective' });
       ActivityReportObjective.hasMany(models.ActivityReportObjectiveFile, { foreignKey: 'activityReportObjectiveId', as: 'activityReportObjectiveFiles' });
       ActivityReportObjective.hasMany(models.ActivityReportObjectiveTopic, { foreignKey: 'activityReportObjectiveId', as: 'activityReportObjectiveTopics' });
-      ActivityReportObjective.hasMany(models.ActivityReportObjectiveResource, { foreignKey: 'activityReportObjectiveId', as: 'activityReportObjectiveResources' });
+      ActivityReportObjective.hasMany(models.EntityResource, {
+        scope: {
+          entityType: ENTITY_TYPES.REPORTOBJECTIVE,
+        },
+        foreignKey: 'entityId',
+        as: 'entityResources',
+        hooks: true,
+        onDelete: 'cascade',
+      });
+      ActivityReportObjective.belongsToMany(models.Resource, {
+        through: models.EntityResource,
+        scope: {
+          entityType: ENTITY_TYPES.REPORTOBJECTIVE,
+        },
+        foreignKey: 'entityId',
+        otherKey: 'resourceId',
+        as: 'resources',
+        hooks: true,
+      });
       ActivityReportObjective.belongsToMany(models.File, {
         through: models.ActivityReportObjectiveFile,
         foreignKey: 'activityReportObjectiveId',

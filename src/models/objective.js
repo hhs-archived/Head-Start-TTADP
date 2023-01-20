@@ -1,6 +1,7 @@
 const {
   Model,
 } = require('sequelize');
+const { ENTITY_TYPES } = require('../constants');
 const {
   beforeValidate,
   beforeUpdate,
@@ -28,12 +29,24 @@ module.exports = (sequelize, DataTypes) => {
       });
       Objective.belongsTo(models.OtherEntity, { foreignKey: 'otherEntityId', as: 'otherEntity' });
       Objective.belongsTo(models.Goal, { foreignKey: 'goalId', as: 'goal' });
-      Objective.hasMany(models.ObjectiveResource, { foreignKey: 'objectiveId', as: 'objectiveResources' });
+      Objective.hasMany(models.EntityResource, {
+        scope: {
+          entityType: ENTITY_TYPES.OBJECTIVE,
+        },
+        foreignKey: 'entityId',
+        as: 'entityResources',
+        hooks: true,
+        onDelete: 'cascade',
+      });
       Objective.belongsToMany(models.Resource, {
-        through: models.ObjectiveResource,
-        foreignKey: 'objectiveId',
+        through: models.EntityResource,
+        scope: {
+          entityType: ENTITY_TYPES.OBJECTIVE,
+        },
+        foreignKey: 'entityId',
         otherKey: 'resourceId',
         as: 'resources',
+        hooks: true,
       });
       Objective.hasMany(models.ObjectiveTopic, { foreignKey: 'objectiveId', as: 'objectiveTopics' });
       Objective.belongsToMany(models.Topic, {
