@@ -3,6 +3,7 @@ import unless from 'express-unless';
 import httpContext from 'express-http-context';
 import join from 'url-join';
 import { v4 as uuidv4 } from 'uuid';
+import { pathToRegexp } from 'path-to-regexp';
 
 import authMiddleware, { login } from '../middleware/authMiddleware';
 import cookieSession from '../middleware/sessionMiddleware';
@@ -38,6 +39,41 @@ const router = express.Router();
 router.use(httpContext.middleware);
 router.use(cookieSession);
 router.use(authMiddleware.unless({ path: [join('/api', loginPath)] }));
+
+// router.use((req, res, next) => {
+//   const { method, path } = req;
+
+//   let matchedRoute;
+
+//   // iterate over the list of routes to find a match
+//   router.stack.every((rs) => {
+//     console.log(path, method, JSON.stringify(rs.route));
+//     if (rs.route && rs.route.methods[method.toLowerCase()]) {
+//       const keys = [];
+//       const regexp = pathToRegexp(rs.route.path, keys);
+//       const match = regexp.exec(path);
+
+//       if (match) {
+//         matchedRoute = {
+//           path: rs.route.path,
+//           keys,
+//           handler: rs.route.stack[0].name,
+//         };
+//         return false;
+//       }
+//     }
+//     return true;
+//   });
+
+//   if (matchedRoute) {
+//     console.log(`Matched route: ${matchedRoute.path} (${method})`);
+//     console.log(`Route handler: ${matchedRoute.stack ? matchedRoute.stack[0].name : ''}`);
+//   } else {
+//     console.log(`No matching route found for ${method} ${path}`);
+//   }
+
+//   next();
+// });
 
 router.use((req, res, next) => {
   try {
