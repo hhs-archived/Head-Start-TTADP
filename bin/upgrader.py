@@ -5,7 +5,8 @@ import subprocess
 import shutil
 import os
 import itertools
-
+import time
+import requests
 import json
 
 def refactor_data(json_data):
@@ -25,8 +26,8 @@ def refactor_data(json_data):
 
         # Add the delta attribute
         current_version = obj['Current']
-        wanted_version = obj['Wanted']
-        delta = get_delta(current_version, wanted_version)
+        latest_version = obj['Latest']
+        delta = get_delta(current_version, latest_version)
         obj['WantedDelta'] = delta
         latest_version = obj['Latest']
         delta = get_delta(current_version, latest_version)
@@ -37,13 +38,13 @@ def refactor_data(json_data):
     return refactored_data
 
 
-def get_delta(current_version, wanted_version):
+def get_delta(current_version, latest_version):
     # Logic to determine the delta portion (major, minor, patch)
-    if current_version == wanted_version:
+    if current_version == latest_version:
         return 'None'
-    elif current_version.split('.')[0] != wanted_version.split('.')[0]:
+    elif current_version.split('.')[0] != latest_version.split('.')[0]:
         return 'Major'
-    elif current_version.split('.')[1] != wanted_version.split('.')[1]:
+    elif current_version.split('.')[1] != latest_version.split('.')[1]:
         return 'Minor'
     else:
         return 'Patch'
@@ -91,7 +92,7 @@ for dependency_type in dependency_types:
         grouped_packages = {}
         for package_name, package_info_list in outdated_groups.items():
             for package_info in package_info_list:
-                wanted_delta = package_info['WantedDelta']
+                wanted_delta = package_info['LatestDelta']
                 prefix = package_name.split('-')[0]  # Assuming package names have a hyphen separator
 
                 key = (wanted_delta, prefix)
@@ -106,62 +107,69 @@ for dependency_type in dependency_types:
 
             # Check if the group has a Patch delta
             if wanted_delta == 'Patch':
-                # Extract the wanted version from the first package in the group
+                # Extract the latest version from the first package in the group
                 package_info = package_info_list[0]
                 package_name = package_info['Package']
                 current_version = package_info['Current']
-                wanted_version = package_info['Wanted']
+                latest_version = package_info['Latest']
 
-                print(f"Updating {package_name} (current version: {current_version}, wanted version: {wanted_version})...")
+                print(f"Updating {package_name} (current version: {current_version}, latest version: {latest_version})...")
 
-                # Update the dependency to the wanted version
+                # Update the dependency to the latest version
                 try:
-                    update_process = subprocess.run(['yarn', 'upgrade', f"{package_name}@{wanted_version}"], capture_output=True, text=True, check=True)
+                    update_process = subprocess.run(['yarn', 'upgrade', f"{package_name}@{latest_version}"], capture_output=True, text=True, check=True)
                 except subprocess.CalledProcessError as e:
                     print(f"Error: Failed to update {package_name}.")
                     continue
 
                 # Run tests and handle test results
-                test_command = ['yarn', 'docker:test', 'backend']
                 try:
-                    test_process = subprocess.run(test_command, capture_output=True, text=True, check=True)
+                    # Push the changes to GitHub
+                    subprocess.run(['git', 'push'], check=True)
+
+                    # Trigger a new CircleCI pipeline
+                    response = requests.post('https://circleci.com/api/v2/project/Head-Start-TTADP/pipeline', headers={'Circle-Token': os.environ['CIRCLECI_AUTH_TOKEN']})
+
+                    if response.status_code == 201:
+                        pipeline_data = response.json()
+                        pipeline_id = pipeline_data['id']
+                        print(f"CircleCI pipeline triggered for {package_name}. Pipeline ID: {pipeline_id}")
+
+                        # Wait for CircleCI build success or failure
+                        print("Waiting for CircleCI build...")
+                        while True:
+                            time.sleep(10)  # Wait for 10 seconds before checking the build status
+                            response = requests.get(f"https://circleci.com/api/v2/pipeline/{pipeline_id}/workflow")
+                            if response.status_code == 200:
+                                workflow_data = response.json()
+                                last_workflow = workflow_data['items'][0]
+                                status = last_workflow['status']
+                                if status == 'success':
+                                    print(f"CircleCI build succeeded for {package_name}.")
+                                    break
+                                elif status == 'failed':
+                                    print(f"CircleCI build failed for {package_name}. Reverting update...")
+                                    subprocess.run(['yarn', 'add', f"{package_name}@{current_version}"])
+
+                                    # Revert changes in package.json
+                                    package_json[dependency_type][package_name] = current_version
+
+                                    # Discard changes in the working directory
+                                    subprocess.run(['git', 'checkout', '--', 'package.json'])
+                                    break
+                                else:
+                                    print("CircleCI build still in progress...")
+                            else:
+                                print("Failed to get CircleCI workflow data.")
+                                break
+                    else:
+                        print("Failed to trigger CircleCI pipeline.")
                 except subprocess.CalledProcessError as e:
-                    print(f"Error: Tests failed. Reverting {package_name} update...")
-                    subprocess.run(['yarn', 'add', f"{package_name}@{current_version}"])
-
-                    # Revert changes in package.json
-                    package_json[dependency_type][package_name] = current_version
-
-                    # Discard changes in the working directory
-                    subprocess.run(['git', 'checkout', '--', 'package.json'])
+                    print(f"Error: Failed to commit and push the changes for {package_name}.")
+                    print(e)
                     continue
 
-                # Check test results
-                if test_process.returncode != 0:
-                    print(f"Tests failed. Reverting {package_name} update...")
-                    subprocess.run(['yarn', 'add', f"{package_name}@{current_version}"])
 
-                    # Revert changes in package.json
-                    package_json[dependency_type][package_name] = current_version
-
-                    # Discard changes in the working directory
-                    subprocess.run(['git', 'checkout', '--', 'package.json'])
-                else:
-                    print(f"Tests passed. {package_name} updated successfully.")
-                    # Update the version in package.json
-                    package_json[dependency_type][package_name] = wanted_version
-
-                    # Add all modified files and commit the changes to Git
-                    try:
-                        subprocess.run(['git', 'add', '--all'], check=True)
-                        subprocess.run(['git', 'commit', '-m', f"Update {package_name} to {wanted_version}"], check=True)
-
-                        # Push the changes to GitHub
-                        subprocess.run(['git', 'push'], check=True)
-                    except subprocess.CalledProcessError as e:
-                        print(f"Error: Failed to commit and push the changes for {package_name}.")
-                        print(e)
-                        continue
 
 
 
