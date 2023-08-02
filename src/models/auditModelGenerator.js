@@ -320,6 +320,7 @@ const attachHooksForAuditing = (sequelize) => {
 };
 
 export {
+  generateModelClass,
   generateZALDDL,
   generateZADescriptor,
   generateZAFilter,
