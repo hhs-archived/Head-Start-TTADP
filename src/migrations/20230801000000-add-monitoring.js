@@ -1,5 +1,6 @@
 const {
   prepMigration,
+  removeTables,
 } = require('../lib/migration');
 
 module.exports = {
@@ -1049,42 +1050,44 @@ module.exports = {
     await queryInterface.sequelize.transaction(async (transaction) => {
       await prepMigration(queryInterface, transaction, __filename);
 
-      await queryInterface.dropTable('AMS_CLASS_SUMMARYGrants', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_FindingGrants', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingHistory', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_FindingHistoryStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_FindingStandards', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_FindingStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_Reviews', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_Reviewers', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_ReviewerRoles', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_ReviewGrantees', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_ReviewStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_ReviewTeams', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewTeamStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('AMS_Standards', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('CLASS_SUMMARY', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('CLASS_SUMMARYGrants', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Contents', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Findings', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingGrants', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingHistories', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingHistoryStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingStandards', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('FindingStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Grantees', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('GranteeStatuses', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('NationalSchedules', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Regions', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Reviews', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Reviewers', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewerRoles', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewGrantees', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewStatuses', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewTeams', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('ReviewTeamStatus', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('Standards', { schema: 'monitoring', transaction });
-      await queryInterface.dropTable('SystemInfos', { schema: 'monitoring', transaction });
+      await Promise.all([
+        'AMS_CLASS_SUMMARYGrants',
+        'AMS_FindingGrants',
+        'FindingHistory',
+        'AMS_FindingHistoryStatus',
+        'AMS_FindingStandards',
+        'AMS_FindingStatus',
+        'AMS_Reviews',
+        'AMS_Reviewers',
+        'AMS_ReviewerRoles',
+        'AMS_ReviewGrantees',
+        'AMS_ReviewStatus',
+        'AMS_ReviewTeams',
+        'ReviewTeamStatus',
+        'AMS_Standards',
+        'CLASS_SUMMARY',
+        'CLASS_SUMMARYGrants',
+        'Contents',
+        'Findings',
+        'FindingGrants',
+        'FindingHistories',
+        'FindingHistoryStatus',
+        'FindingStandards',
+        'FindingStatus',
+        'Grantees',
+        'GranteeStatuses',
+        'NationalSchedules',
+        'Regions',
+        'Reviews',
+        'Reviewers',
+        'ReviewerRoles',
+        'ReviewGrantees',
+        'ReviewStatuses',
+        'ReviewTeams',
+        'ReviewTeamStatus',
+        'Standards',
+        'SystemInfos',
+      ].map(async (table) => queryInterface.dropTable(table, { schema: 'monitoring', transaction })));
 
       await queryInterface.dropSchema('monitoring', { transaction });
     });
