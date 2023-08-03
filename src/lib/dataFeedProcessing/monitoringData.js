@@ -1030,10 +1030,3 @@ const monitoringTableSchemas = {
 };
 
 const monitoringModels = generateImportModels(monitoringTableSchemas);
-
-const loadMonitoringData = async (url) => {
-  // Load the data from url to s3, returning { hash, key }
-  // Stream from s3, returning { file1: stream, ... }
-  // Process all file streams to their corresponding table through the generated models
-  // This seems like it could all be generic to support other file sources later.
-};

@@ -1,10 +1,12 @@
 import axios from 'axios';
 import { createHash }  from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import StreamZip from 'node-stream-zip';
 import { PassThrough, Readable, Transform } from 'stream';
 import sax from 'sax';
 import { Model } from 'sequelize';
+import { calculateHashFromStream, getFileSizeFromStream } from '../fileUtils';
 import {
   uploadStreamToS3,
   readStreamFromS3,
@@ -15,8 +17,14 @@ import db, {
 import { generateModelClass } from '../../models/auditModelGenerator';
 import { auditLogger } from '../../logger';
 
+/**
+ * Generates import models for the given schemas.
+ * @param {Object} schemas - The schemas object.
+ * @returns {Object} - The generated import models.
+ */
 export const generateImportModels = (schemas) => Object.entries(schemas)
   .reduce((acc, [key, value]) => {
+    // Generate a model class for each schema and assign it to the corresponding key in the accumulator object.
     acc[key].model = generateModelClass(
       sequelize,
       key,
@@ -26,23 +34,14 @@ export const generateImportModels = (schemas) => Object.entries(schemas)
     return acc;
   }, {});
 
-const calculateStreamHash = (inputStream) => new Promise((resolve, reject) => {
-    const shaHash = createHash('sha256');
-
-    inputStream.on('data', (chunk) => {
-      shaHash.update(chunk);
-    });
-
-    inputStream.on('end', () => {
-      const shaHashResult = shaHash.digest('hex');
-      resolve(shaHashResult);
-    });
-
-    inputStream.on('error', (error) => {
-      reject(error);
-    });
-  });
-
+/**
+ * Downloads a file from a given URL and returns a readable stream of the file contents.
+ *
+ * @param url - The URL of the file to download.
+ * @param username - Optional username for authentication.
+ * @param password - Optional password for authentication.
+ * @returns A readable stream of the downloaded file contents.
+ */
 const steamFileFromUrl = async (url, username, password) => {
   try {
     // Create a pass-through stream
@@ -62,7 +61,7 @@ const steamFileFromUrl = async (url, username, password) => {
       },
     );
 
-    // Pipe the Axios response stream to the S3 upload stream
+    // Pipe the Axios response stream to the stream
     response.data.pipe(stream);
 
     return stream;
@@ -72,92 +71,101 @@ const steamFileFromUrl = async (url, username, password) => {
   }
 };
 
-export const steamFileFromUrlToS3 = async (url, s3Bucket, s3Key, username = null, password = null) => {
+/**
+ * Downloads a file from a given URL, calculates its hash and size,
+ * and uploads it to an S3 bucket.
+ *
+ * @param url - The URL of the file to download.
+ * @param s3Bucket - The name of the S3 bucket to upload the file to.
+ * @param s3Key - The key (path) of the file in the S3 bucket.
+ * @param username - Optional username for authentication.
+ * @param password - Optional password for authentication.
+ * @returns A promise that resolves to an object containing the hash, size, and S3 key of the uploaded file.
+ */
+export const steamFileFromUrlToS3 = async (
+  url: string,
+  s3Bucket: string,
+  s3Key: string,
+  username: string = null,
+  password: string = null,
+): Promise<{ hash: string, size: number, s3Key: string }> => {
   try {
     // Get a pass-through stream of the file
     const stream = await steamFileFromUrl(url, username, password);
 
-    const [hash, ] = await Promise.all([
-      calculateStreamHash(stream),
-      // Wait for the S3 upload to complete
-      uploadStreamToS3(stream, s3Bucket, s3Key)
+    // Calculate the hash and size of the file concurrently
+    const [hash, size] = await Promise.all([
+      calculateHashFromStream(stream),
+      getFileSizeFromStream(stream),
+      uploadStreamToS3(stream, s3Bucket, s3Key),
     ]);
 
-    return { url, hash, s3Key };
+    return { hash, size, s3Key };
   } catch (err) {
     auditLogger.error('Error downloading file and uploading to S3:', err);
     throw err;
   }
 };
 
-async function readStreamsFromZip(zipStream: Readable): Promise<{ [key: string]: Readable }> {
-  return new Promise((resolve, reject) => {
-    const streams: { [key: string]: Readable } = {};
+const readStreamsFromZip = (
+  zipStream: Readable,
+): Promise<{ [key: string]: Readable }> => new Promise((resolve, reject) => {
+  const streams: { [key: string]: Readable } = {};
 
-    const zip = new StreamZip({
-      storeEntries: true,
-    });
+  const zip = new StreamZip({
+    storeEntries: true,
+  });
 
-    zip.on('ready', () => {
-      const entries = zip.entries();
+  zip.on('ready', () => {
+    const entries = zip.entries();
 
-      for (const entry of Object.values(entries)) {
-        if (!entry.isDirectory) {
-          const stream = new Readable();
-          stream._read = () => {}; // Required to make it a readable stream
+    for (const entry of Object.values(entries)) {
+      if (!entry.isDirectory) {
+        const stream = new Readable();
+        stream._read = () => {}; // Required to make it a readable stream
 
-          streams[entry.name] = stream;
+        streams[entry.name] = stream;
 
-          zip.stream(entry.name, (err, readStream) => {
-            if (err) {
-              console.error('Error reading zip entry:', err);
-              return;
-            }
+        zip.stream(entry.name, (err, readStream) => {
+          if (err) {
+            console.error('Error reading zip entry:', err);
+            return;
+          }
 
-            readStream.on('data', (chunk) => {
-              stream.push(chunk);
-            });
-
-            readStream.on('end', () => {
-              stream.push(null);
-            });
-
-            readStream.on('error', (err) => {
-              console.error(`Error streaming file "${entry.name}":`, err);
-            });
+          readStream.on('data', (chunk) => {
+            stream.push(chunk);
           });
-        }
+
+          readStream.on('end', () => {
+            stream.push(null);
+          });
+
+          readStream.on('error', (err) => {
+            console.error(`Error streaming file "${entry.name}":`, err);
+          });
+        });
       }
-
-      zip.close();
-
-      resolve(streams);
-    });
-
-    zip.on('error', (err) => {
-      reject(err);
-    });
-
-    zip.open(zipStream);
-  });
-}
-
-// Usage example
-const zipStream = getReadableStreamToZipFile(); // Replace with your own readable stream to the zip file
-readStreamsFromZip(zipStream)
-  .then((streams) => {
-    // Use the streams as needed
-    for (const fileName in streams) {
-      const stream = streams[fileName];
-      // Do something with the stream
     }
-  })
-  .catch((err) => {
-    console.error('Error reading streams from zip:', err);
+
+    zip.close();
+
+    resolve(streams);
   });
 
+  zip.on('error', (err) => {
+    reject(err);
+  });
 
-async function processXmlFile(xmlPath: string, xslPath: string, model: typeof Model) {
+  zip.open(zipStream);
+});
+
+const readStreamsFromZipOnS3 = async (s3Bucket, s3Key) => {
+  const stream = await readStreamFromS3(s3Bucket, s3Key);
+  return readStreamsFromZip(stream);
+};
+
+
+async function processXmlFile(xmlPath: string, xslPath: string, model: Model) {
   // Read the XSL file
   const xslData = fs.readFileSync(xslPath, 'utf-8');
 
@@ -214,4 +222,33 @@ async function processXmlFile(xmlPath: string, xslPath: string, model: typeof Mo
   // Pipe the XML stream through the XML parser
   xmlStream.pipe(xmlParser);
 }
+
+const fileNameToModel = (zipFile: string, models: Model[]): Model => {
+  const fileName = path.basename(zipFile);
+  const fileExtension = path.extname(fileName);
+  const fileNameWithoutExtension = path.basename(fileName, fileExtension);
+  const processorModel = models['fileNameWithoutExtension'];
+  return processorModel;
+}
+
+const loadDataFromUrl = async (url string, processorModels: Model[], username = null, password = null) => {
+  // Load the data from url to s3, returning { hash, key }
+  const {
+    hash,
+    size,
+    s3Key,
+  } = await steamFileFromUrlToS3(url, x, x, username, password);
+
+  // Stream from s3, returning { file1: stream, ... }
+  const fileStreams = readStreamsFromZipOnS3(x, x);
+
+  // Process all file streams to their corresponding table through the generated models
+  for ( const keyValue in Object.entries(fileStreams)) {
+    const [ key, value ] = keyValue;
+
+    const processorModel = fileNameToModel(key, processorModels);
+
+    await processXmlFile(fileStream, processorModel);
+  }
+};
 
