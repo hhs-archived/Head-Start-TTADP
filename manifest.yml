@@ -42,11 +42,11 @@ applications:
     processes:
       - type: web
         instances: ((web_instances))
-        command: yarn start:web
+        command: npm start:web
         memory: ((web_memory))
       - type: worker
         instances: ((worker_instances))
-        command: yarn start:worker
+        command: npm start:worker
         memory: ((worker_memory))
   - name: tta-similarity-api-((env))
     strategy: rolling
