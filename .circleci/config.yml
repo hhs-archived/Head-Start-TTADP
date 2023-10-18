@@ -44,17 +44,17 @@ executors:
     machine:
       image: ubuntu-2204:current
 commands:
-  create_combined_yarnlock:
-    description: "Concatenate all yarn.json files into single file.
+  create_combined_package_lock:
+    description: "Concatenate all package-lock.json files into single file.
       File is used as checksum source for part of caching key."
     parameters:
       filename:
         type: string
-        default: "combined-yarnlock.txt"
+        default: "combined-package-lock.txt"
     steps:
       - run:
           name: Combine package-lock.json files to single file
-          command: cat yarn.lock frontend/yarn.lock packages/common/yarn.lock > << parameters.filename >>
+          command: cat package-lock.json frontend/package-lock.json packages/common/package-lock.json > << parameters.filename >>
   create_combined_pipfreeze:
     description: "Concatenate all requirements.txt files into a single file. File is used as checksum source for part of caching key."
     parameters:
@@ -262,26 +262,26 @@ jobs:
     executor: docker-executor
     steps:
       - checkout
-      - create_combined_yarnlock
+      - create_combined_package_lock
       - restore_cache:
           keys:
-            # To manually bust the cache, increment the version e.g. v7-yarn...
-            - v14-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
+            # To manually bust the cache, increment the version e.g. v7-npm-deps-...
+            - v1-npm-deps-{{ checksum "combined-package-lock.txt" }}
             # If checksum is new, restore partial cache
-            - v14-yarn-deps-
-      - run: yarn deps
+            - v1-npm-deps-
+      - run: npm run deps
       - save_cache:
           paths:
             - node_modules
             - frontend/node_modules
             - packages/common/node_modules
-          key: v11-yarn-deps-{{ checksum "combined-yarnlock.txt" }}
+          key: v1-npm-deps-{{ checksum "combined-package-lock.txt" }}
       - run:
           name: Lint backend
-          command: yarn lint:ci
+          command: npm run lint:ci
       - run:
           name: Lint frontend
-          command: yarn --cwd frontend lint:ci
+          command: npm run --prefix frontend lint:ci
       - store_artifacts:  # store backend lint reports
           path: reports
       - store_artifacts:  # store frontend lint reports
@@ -345,10 +345,10 @@ jobs:
             ./run-yarn-audit.sh;
       - run:
           name: Run migrations ci
-          command: yarn db:migrate:ci
+          command: npm run db:migrate:ci
       - run:
           name: Run seeders
-          command: yarn db:seed:ci
+          command: npm run db:seed:ci
       - run:
           name: Test backend
           command:  |
@@ -426,7 +426,7 @@ jobs:
             ./run-yarn-audit.sh;
       - run:
           name: Test frontend
-          command: yarn --cwd frontend run test:ci --maxWorkers=50%
+          command: npm run --prefix frontend run test:ci --maxWorkers=50%
       - store_test_results:
           path: frontend/reports/
       - store_artifacts:
@@ -446,15 +446,15 @@ jobs:
       - run:
           name: Start server
           command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
+            npm run build
+            BYPASS_AUTH=true CURRENT_USER_ID=5 npm run start:ci
           background: true
       - run:
           name: Run migrations ci
-          command: yarn db:migrate:ci
+          command: npm run db:migrate:ci
       - run:
           name: Seed database
-          command: yarn db:seed:ci
+          command: npm run db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -464,7 +464,7 @@ jobs:
             npx playwright install
       - run:
           name: Run playwright tests
-          command: yarn e2e:ci
+          command: npm run e2e:ci
       - store_artifacts:
           path: playwright/e2e
     resource_class: large
@@ -482,15 +482,15 @@ jobs:
       - run:
           name: Start server
           command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
+            npm run build
+            BYPASS_AUTH=true CURRENT_USER_ID=5 npm run start:ci
           background: true
       - run:
           name: Run migrations ci
-          command: yarn db:migrate:ci
+          command: npm run db:migrate:ci
       - run:
           name: Seed database
-          command: yarn db:seed:ci
+          command: npm run db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -500,7 +500,7 @@ jobs:
             npx playwright install
       - run:
           name: Run playwright tests
-          command: yarn e2e:api
+          command: npm run e2e:api
       - store_artifacts:
           path: playwright/api
     resource_class: large
@@ -518,15 +518,15 @@ jobs:
       - run:
           name: Start server
           command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
+            npm run build
+            BYPASS_AUTH=true CURRENT_USER_ID=5 npm run start:ci
           background: true
       - run:
           name: Run migrations ci
-          command: yarn db:migrate:ci
+          command: npm run db:migrate:ci
       - run:
           name: Seed database
-          command: yarn db:seed:ci
+          command: npm run db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -536,7 +536,7 @@ jobs:
             npx playwright install
       - run:
           name: Run playwright tests
-          command: yarn e2e:utils
+          command: npm run e2e:utils
       - store_artifacts:
           path: playwright/utilsTests
     resource_class: large
@@ -548,22 +548,22 @@ jobs:
       - run:
           name: Start server
           command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
+            npm run build
+            BYPASS_AUTH=true CURRENT_USER_ID=5 npm run start:ci
           background: true
       - run:
           name: Run migrations ci
-          command: yarn db:migrate:ci
+          command: npm run db:migrate:ci
       - run:
           name: Seed database
-          command: yarn db:seed:ci
+          command: npm run db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
       - run:
           name: Run cucumber
           command: |
-            yarn cucumber:ci
+            npm run cucumber:ci
       - store_artifacts:
           path: reports/
     resource_class: large
@@ -597,7 +597,7 @@ jobs:
           at: .
       - run:
           name: Build backend assets
-          command: yarn build
+          command: npm run build
       - when:
           condition:
             and:
@@ -620,7 +620,7 @@ jobs:
           steps:
             - run:
                 name: Build frontend assets
-                command: yarn --cwd frontend run build
+                command: npm run --prefix frontend run build
                 environment:
                   REACT_APP_GTM_ENABLED: $SANDBOX_GTM_ENABLED
                   REACT_APP_GTM_ID: $GLOBAL_GTM_ID
@@ -654,7 +654,7 @@ jobs:
                 name: Migrate database
                 command: |
                   cf run-task tta-smarthub-sandbox \
-                    --command "yarn db:migrate:prod" \
+                    --command "npm run db:migrate:prod" \
                     --name "Reset DB"
             - notify_new_relic:
                 env_name: sandbox
@@ -668,7 +668,7 @@ jobs:
           steps:
             - run:
                 name: Build frontend assets
-                command: yarn --cwd frontend run build
+                command: npm run --prefix frontend run build
                 environment:
                   REACT_APP_GTM_ENABLED: $DEV_GTM_ENABLED
                   REACT_APP_GTM_ID: $GLOBAL_GTM_ID
@@ -702,7 +702,7 @@ jobs:
                 name: Migrate database
                 command: |
                   cf run-task tta-smarthub-dev \
-                    --command "yarn db:migrate:prod" \
+                    --command "npm run db:migrate:prod" \
                     --name "Reset DB"
             - notify_new_relic:
                 env_name: dev
@@ -716,7 +716,7 @@ jobs:
           steps:
             - run:
                 name: Build frontend assets
-                command: yarn --cwd frontend run build
+                command: npm run --prefix frontend run build
                 environment:
                   REACT_APP_GTM_ENABLED: $STAGING_GTM_ENABLED
                   REACT_APP_GTM_ID: $GLOBAL_GTM_ID
@@ -749,7 +749,7 @@ jobs:
             - run:
                 name: Run database migrations
                 command: |
-                  cf run-task tta-smarthub-staging --command "yarn db:migrate:prod" --name migrate
+                  cf run-task tta-smarthub-staging --command "npm run db:migrate:prod" --name migrate
             - notify_new_relic:
                 env_name: staging
                 new_relic_app_id: << pipeline.parameters.staging_new_relic_app_id >>
@@ -762,7 +762,7 @@ jobs:
           steps:
             - run:
                 name: Build frontend assets
-                command: yarn --cwd frontend run build
+                command: npm run --prefix frontend run build
                 environment:
                   REACT_APP_GTM_ENABLED: $PROD_GTM_ENABLED
                   REACT_APP_GTM_ID: $GLOBAL_GTM_ID
@@ -795,7 +795,7 @@ jobs:
             - run:
                 name: Run database migrations
                 command: |
-                  cf run-task tta-smarthub-prod --command "yarn db:migrate:prod" --name migrate
+                  cf run-task tta-smarthub-prod --command "npm run db:migrate:prod" --name migrate
             - notify_new_relic:
                 env_name: prod
                 new_relic_app_id: << pipeline.parameters.prod_new_relic_app_id >>
