@@ -3,7 +3,7 @@ services:
   backend:
     build:
       context: .
-    command: npm server
+    command: npm run server
     user: ${CURRENT_USER:-root}
     ports:
       - "8080:8080"
