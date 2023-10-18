@@ -269,7 +269,7 @@ jobs:
             - v1-npm-deps-{{ checksum "combined-package-lock.txt" }}
             # If checksum is new, restore partial cache
             - v1-npm-deps-
-      - run: npm run deps
+      - run: npm run deps:prod
       - save_cache:
           paths:
             - node_modules
