@@ -3,7 +3,7 @@ services:
   backend:
     build:
       context: .
-    command: yarn server
+    command: npm server
     user: ${CURRENT_USER:-root}
     ports:
       - "8080:8080"
@@ -32,7 +32,7 @@ services:
   frontend:
     build:
       context: .
-    command: yarn start
+    command: npm start
     user: ${CURRENT_USER:-root}
     stdin_open: true
     ports:
@@ -48,7 +48,7 @@ services:
   worker:
     build:
       context: .
-    command: yarn worker
+    command: npm worker
     env_file: .env
     depends_on:
       - db
