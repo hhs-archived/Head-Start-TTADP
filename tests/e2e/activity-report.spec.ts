@@ -773,7 +773,7 @@ test.describe('Activity Report', () => {
     .click();
     await page.getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Remove this objective' }).first().click();
-    await page.getByRole('button', { name: 'This button will remove the objective from the activity report' }).first().click();
+    await page.locator('[aria-label="This button will remove the objective from the activity report"]').click();
 
     // Second save goal
     await page.getByRole('button', { name: 'Save goal' }).click();
