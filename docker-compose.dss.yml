@@ -3,7 +3,7 @@ services:
   server:
     build:
       context: .
-    command: npm start:web
+    command: npm run start:web
     user: ${CURRENT_USER:-root}
     networks:
       - smarthub

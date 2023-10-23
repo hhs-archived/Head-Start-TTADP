@@ -81,7 +81,7 @@ services:
       - db
     volumes:
       - ".:/app:rw"
-    command: npm start:testingonly
+    command: npm run start:testingonly
     environment:
       - POSTGRES_HOST=postgres_docker
       - NODE_ENV=development

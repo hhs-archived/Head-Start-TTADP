@@ -3,7 +3,7 @@ services:
   backend:
     build:
       context: .
-    command: npm server:debug
+    command: npm run server:debug
     user: ${CURRENT_USER:-root}
     ports:
       - "8080:8080"
@@ -36,7 +36,7 @@ services:
   frontend:
     build:
       context: .
-    command: npm start
+    command: npm run start
     user: ${CURRENT_USER:-root}
     stdin_open: true
     ports:
@@ -49,7 +49,7 @@ services:
   worker:
     build:
       context: .
-    command: npm worker
+    command: npm run worker
     env_file: .env
     depends_on:
       - db
