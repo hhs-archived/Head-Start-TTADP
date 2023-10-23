@@ -10,7 +10,7 @@
     "build": "tsc -p src",
     "deps:local": "npm install && npm --prefix frontend install",
     "deps": "npm install --package-lock && npm --prefix frontend install --package-lock --legacy-peer-deps",
-    "deps:prod": "npm install --package-lock --production && npm --prefix frontend install --package-lock --legacy-peer-deps --production",
+    "deps:prod": "npm install --package-lock --production --loglevel verbose && npm --prefix frontend install --package-lock --legacy-peer-deps --production --loglevel verbose",
     "start:local": "concurrently \"npm server\" \"npm client\" \"npm worker\"",
     "start:ci": "cross-env BYPASS_SOCKETS=true POSTGRES_USERNAME=postgres POSTGRES_DB=ttasmarthub TTA_SMART_HUB_URI=http://localhost:3000 concurrently \"npm start:web\" \"npm client\" \"npm start:testingonly\"",
     "start:web": "node ./build/server/src/index.js",
