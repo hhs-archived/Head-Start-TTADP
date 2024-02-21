@@ -108,7 +108,7 @@ export default class LockManager {
     if (!hasLock) {
       hasLock = await this.isCurrentLock();
       if (!hasLock) {
-        auditLogger.log(
+        auditLogger.info(
           'info',
           `(${process.pid}) Lock for key "${this.lockKey}" is already acquired by another instance. Skipping...`,
         );

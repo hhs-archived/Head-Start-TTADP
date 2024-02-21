@@ -104,16 +104,29 @@ export default function runCronJobs() {
   if (process.env.CF_INSTANCE_INDEX === '0' && process.env.NODE_ENV === 'production') {
     // disable updates for non-production environments
     if (process.env.TTA_SMART_HUB_URI && !process.env.TTA_SMART_HUB_URI.endsWith('app.cloud.gov')) {
-      const job = new CronJob(schedule, () => runJob(), null, true, timezone);
+      const job = new CronJob(schedule, () => {
+        runJob();
+        auditLogger.info('Cron job ran successfully: runJob');
+      }, null, true, timezone);
       job.start();
     }
-    const dailyJob = new CronJob(dailySched, () => runDailyEmailJob(), null, true, timezone);
+    const dailyJob = new CronJob(dailySched, () => {
+      runDailyEmailJob();
+      auditLogger.info('Cron job ran successfully: runDailyEmailJob');
+    }, null, true, timezone);
     dailyJob.start();
-    const weeklyJob = new CronJob(weeklySched, () => runWeeklyEmailJob(), null, true, timezone);
+    const weeklyJob = new CronJob(weeklySched, () => {
+      runWeeklyEmailJob();
+      auditLogger.info('Cron job ran successfully: runWeeklyEmailJob');
+    }, null, true, timezone);
     weeklyJob.start();
-    const monthlyJob = new CronJob(monthlySched, () => runMonthlyEmailJob(), null, true, timezone);
+    const monthlyJob = new CronJob(monthlySched, () => {
+      runMonthlyEmailJob();
+      auditLogger.info('Cron job ran successfully: runMonthlyEmailJob');
+    }, null, true, timezone);
     monthlyJob.start();
 
     runMaintenanceCronJobs(timezone);
+    auditLogger.info('Maintenance cron jobs ran successfully');
   }
 }

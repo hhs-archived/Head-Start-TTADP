@@ -15,7 +15,7 @@ const bypassSockets = !!process.env.BYPASS_SOCKETS;
 
 const port = process.env.PORT || 8080;
 const server = app.listen(port, () => {
-  auditLogger.info(`Listening on port ${port}`);
+  auditLogger.info(`Listening on port ${port}`); // Log server start
 });
 
 if (!bypassSockets) {
@@ -28,6 +28,7 @@ if (!bypassSockets) {
   (async () => {
     try {
       const wss = new WebSocketServer({ server });
+      auditLogger.info('WebSocket server started.'); // Log WebSocket server start
 
       const redisClient = createClient({
         url: redisUrl,
@@ -36,36 +37,37 @@ if (!bypassSockets) {
         },
       });
       await redisClient.connect();
+      auditLogger.info('Connected to Redis.'); // Log successful Redis connection
 
       wss.on('connection', async (ws, req) => {
-        // We need to set up duplicate connections for subscribing,
-        // as once a client is in "subscribe" mode, it can't send
-        // any other commands (like "publish")
+        auditLogger.info(`New WebSocket connection: ${req.url}`); // Log new WebSocket connection
+
         const subscriber = redisClient.duplicate();
         await subscriber.connect();
 
         const channelName = req.url;
-        // subscribe to the channel, the function is a callback for what to
-        // do when a message is received via redis pub/sub
         await subscriber.subscribe(channelName, (message) => {
           ws.send(message);
+          auditLogger.info(`Message sent to WebSocket client on channel ${channelName}`); // Log message sent to WebSocket client
         });
 
-        // when a message is received via websocket, publish it to redis
         ws.on('message', async (message) => {
           try {
             const { channel, ...data } = JSON.parse(message);
             await redisClient.publish(channel, JSON.stringify(data));
+            auditLogger.info(`Message published to Redis on channel ${channel}`); // Log message published to Redis
           } catch (err) {
             auditLogger.error('WEBSOCKET: The following message was unable to be parsed and returned an error: ', message, err);
           }
         });
 
-        // on close, unsubscribe from the channel
-        ws.on('close', async () => subscriber.unsubscribe(channelName));
+        ws.on('close', async () => {
+          await subscriber.unsubscribe(channelName);
+          auditLogger.info(`WebSocket client disconnected from channel ${channelName}`); // Log WebSocket client disconnection
+        });
       });
     } catch (err) {
-      auditLogger.error(err);
+      auditLogger.error('Error setting up WebSocket server or Redis client:', err);
     }
   })();
 }

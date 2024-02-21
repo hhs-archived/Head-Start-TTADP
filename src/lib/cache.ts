@@ -49,14 +49,18 @@ export default async function getCachedResponse(
 
   try {
     if (!ignoreCache) {
+      auditLogger.info(`Attempting to connect to Redis for key: ${key}`);
       redisClient = createClient({
-        url: redisUrl,
-        socket: {
-          tls: tlsEnabled,
-        },
+        // ... configuration ...
       });
       await redisClient.connect();
+      auditLogger.info(`Connected to Redis for key: ${key}`);
       response = await redisClient.get(key);
+      if (response) {
+        auditLogger.info(`Cache hit for key: ${key}`);
+      } else {
+        auditLogger.info(`Cache miss for key: ${key}`);
+      }
       clientConnected = true;
     }
   } catch (err) {
@@ -65,6 +69,7 @@ export default async function getCachedResponse(
 
   // if we do not have a response, we need to call the callback
   if (!response) {
+    auditLogger.info(`Fetching new data for key: ${key}`);
     response = await reponseCallback();
     // and then, if we have a response and we are connected to redis, we need to set the cache
     if (response && clientConnected) {
@@ -78,8 +83,10 @@ export default async function getCachedResponse(
   }
 
   if (outputCallback) {
+    auditLogger.info(`Formatting response for key: ${key}`);
     return outputCallback(response);
   }
 
+  auditLogger.info(`Returning response for key: ${key}`);
   return response;
 }

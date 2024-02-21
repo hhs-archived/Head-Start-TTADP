@@ -2,6 +2,8 @@ import Queue from 'bull';
 import { auditLogger } from '../logger';
 
 const generateRedisConfig = (enableRateLimiter = false) => {
+  auditLogger.info('Generating Redis configuration');
+
   if (process.env.VCAP_SERVICES) {
     const {
       'aws-elasticache-redis': [{
@@ -19,14 +21,13 @@ const generateRedisConfig = (enableRateLimiter = false) => {
       host,
       port,
       tlsEnabled: true,
-      // TLS needs to be set to an empty object for redis on cloud.gov
-      // eslint-disable-next-line no-empty-pattern
       redisOpts: {
         redis: { password, tls: {} },
       },
     };
 
-    // Explicitly set the rate limiter settings.
+    auditLogger.debug('VCAP_SERVICES detected, using cloud configuration', redisSettings);
+
     if (enableRateLimiter) {
       redisSettings = {
         ...redisSettings,
@@ -38,12 +39,18 @@ const generateRedisConfig = (enableRateLimiter = false) => {
           },
         },
       };
+
+      auditLogger.debug('Rate limiter enabled', {
+        max: redisSettings.redisOpts.limiter.max,
+        duration: redisSettings.redisOpts.limiter.duration,
+      });
     }
 
     return redisSettings;
   }
+
   const { REDIS_HOST: host, REDIS_PASS: password } = process.env;
-  return {
+  const redisSettings = {
     host,
     uri: `redis://:${password}@${host}:${process.env.REDIS_PORT || 6379}`,
     port: (process.env.REDIS_PORT || 6379),
@@ -52,6 +59,10 @@ const generateRedisConfig = (enableRateLimiter = false) => {
       redis: { password },
     },
   };
+
+  auditLogger.debug('Using local configuration', redisSettings);
+
+  return redisSettings;
 };
 
 const {
@@ -73,13 +84,25 @@ export async function increaseListeners(queue, num = 1) {
     }), {});
     const totalCount = Object.values(currentCounts).reduce((acc, count) => acc + count, 0);
     const newListenerCount = Math.min(totalCount + num, MAX_LISTENERS);
+
+    // Log the current state before any changes
+    auditLogger.info(`Current max listeners: ${maxListeners}, total listeners: ${totalCount}, requested increase: ${num}`);
+
     if (newListenerCount > maxListeners) {
       redisClient.setMaxListeners(newListenerCount);
+
+      // Log the change in max listeners
+      auditLogger.info(`Increased max listeners to: ${newListenerCount}`);
+    } else {
+      // Log that no change was necessary
+      auditLogger.info(`No need to increase max listeners. Current max is sufficient.`);
     }
+  } else {
+    // Log an error if the redisClient is not available
+    auditLogger.error(`Failed to increase listeners: redisClient is not available.`);
   }
 }
 
-// Remove event handlers
 function removeQueueEventHandlers(
   queue,
   errorListener,
@@ -87,11 +110,11 @@ function removeQueueEventHandlers(
   exceptionListener,
   rejectionListener,
 ) {
-  queue.removeListener('error', errorListener).catch((err) => auditLogger.error(err.message));
-  process.removeListener('SIGINT', shutdownListener).catch((err) => auditLogger.error(err.message));
-  process.removeListener('SIGTERM', shutdownListener).catch((err) => auditLogger.error(err.message));
-  process.removeListener('uncaughtException', exceptionListener).catch((err) => auditLogger.error(err.message));
-  process.removeListener('unhandledRejection', rejectionListener).catch((err) => auditLogger.error(err.message));
+  queue.removeListener('error', errorListener); // removeListener does not return a Promise
+  process.removeListener('SIGINT', shutdownListener);
+  process.removeListener('SIGTERM', shutdownListener);
+  process.removeListener('uncaughtException', exceptionListener);
+  process.removeListener('unhandledRejection', rejectionListener);
 }
 
 // Define the handlers so they can be added and removed

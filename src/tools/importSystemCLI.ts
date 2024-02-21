@@ -9,11 +9,16 @@ const timeBox = process.argv[4];
 // Check if both arguments are provided
 if (action && importId) {
   // Call the function with the argument
-  importSystem(action, importId, timeBox).then(() => process.exit()).catch((e) => {
-    auditLogger.error(e);
-    process.exit(1);
-  });
+  importSystem(action, importId, timeBox)
+    .then(() => {
+      auditLogger.info(`Import system successful for action: ${action} and importId: ${importId}`);
+      process.exit();
+    })
+    .catch((e) => {
+      auditLogger.error(`Error occurred during import system for action: ${action} and importId: ${importId}. Error: ${e}`);
+      process.exit(1);
+    });
 } else {
-  auditLogger.error('Please provide an arguments.');
+  auditLogger.error('Please provide both action and importId arguments.');
   process.exit(1); // Exit with a failure code
 }

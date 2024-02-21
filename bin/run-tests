@@ -43,7 +43,7 @@ main() {
     done
 
     docker-compose \
-        -f 'docker-compose.test.yml' \
+        -f 'docker compose.test.yml' \
         down --volumes --remove-orphans
 
     log "Running tests in using test config 'docker-compose.test.yml'"

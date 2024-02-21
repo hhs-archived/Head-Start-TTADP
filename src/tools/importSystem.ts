@@ -9,7 +9,9 @@ export default async function manuallyTriggerImportSystem(
   timeBoxStr: string,
 ) {
   try {
-    if (!importIdStr || importIdStr.length === 0) throw new Error(`Bad or missing importId: '${importIdStr}'`);
+    if (!importIdStr || importIdStr.length === 0) {
+      throw new Error(`Bad or missing importId: '${importIdStr}'`);
+    }
     const importId = Number(importIdStr);
     const timeBox = timeBoxStr && timeBoxStr.length
       ? Number(timeBoxStr)
@@ -35,7 +37,8 @@ export default async function manuallyTriggerImportSystem(
       throw new Error(`Bad or missing importId: '${importIdStr}'`);
     }
   } catch (e) {
-    auditLogger.error(e.message);
-    throw new Error(`Unknown error: '${e.message}'`);
+    const errorMessage = `Error in manuallyTriggerImportSystem: ${e.message}`;
+    auditLogger.error(errorMessage); // Log the error message
+    throw new Error(errorMessage); // Rethrow the error
   }
 }

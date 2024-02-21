@@ -33,15 +33,27 @@ const enqueueImportMaintenanceJob = async (
   id?: number,
   requiresWorker = false,
   requiresLock = false,
-) => enqueueMaintenanceJob(
-  MAINTENANCE_CATEGORY.IMPORT,
-  {
+) => {
+  // Log the enqueueing of the maintenance job
+  auditLogger.info({
+    action: 'enqueueImportMaintenanceJob',
     type,
     id,
-  },
-  requiresWorker,
-  requiresLock,
-);
+    requiresWorker,
+    requiresLock,
+  });
+
+  // Enqueue the maintenance job
+  return enqueueMaintenanceJob(
+    MAINTENANCE_CATEGORY.IMPORT,
+    {
+      type,
+      id,
+    },
+    requiresWorker,
+    requiresLock,
+  );
+};
 
 /**
  * Asynchronously sets up cron jobs for each import schedule retrieved from a data source.
@@ -55,42 +67,49 @@ const scheduleImportCrons = async () => {
   let imports;
 
   try {
-    // Retrieve a list of import schedules from a data source
+    auditLogger.info('Starting to retrieve import schedules'); // Log the start of the retrieval process
     imports = await getImportSchedules();
 
-    // Iterate over each import schedule to setup cron jobs
+    auditLogger.info('Retrieved import schedules from data source', { count: imports.length }); // Log the count of retrieved schedules
+
     imports.forEach(({
       id,
       name,
       schedule: importSchedule,
-    }) => addCronJob(
-      // Add a new cron job for each import schedule
-      MAINTENANCE_CATEGORY.IMPORT,
-      MAINTENANCE_TYPE.IMPORT_DOWNLOAD,
-      // Define the function that creates a new CronJob instance
-      (category, type, timezone, schedule) => new CronJob(
-        schedule,
-        // Define the task to be executed by the cron job, which enqueues a maintenance job
-        async () => enqueueImportMaintenanceJob(
-          type,
-          id,
+    }) => {
+      auditLogger.info(`Setting up cron job for import schedule: ${name}`, { id, importSchedule }); // Log additional details
+
+      addCronJob(
+        MAINTENANCE_CATEGORY.IMPORT,
+        MAINTENANCE_TYPE.IMPORT_DOWNLOAD,
+        (category, type, timezone, schedule) => new CronJob(
+          schedule,
+          async () => {
+            auditLogger.info(`Enqueuing maintenance job for import schedule: ${name}`, { id }); // Log the enqueuing with id
+            await enqueueImportMaintenanceJob(type, id);
+          },
+          null,
+          true,
+          timezone,
         ),
-        null,
-        true,
-        timezone,
-      ),
-      importSchedule,
-      name,
-    ));
+        importSchedule,
+        name,
+      );
+    });
+
+    auditLogger.info('Running maintenance cron jobs');
     await runMaintenanceCronJobs();
+
   } catch (err) {
+    auditLogger.error(`Error occurred: ${err.message}`, { err }); // Log the full error object for more details
+
     return { imports, isSuccessful: false, error: err.message };
   }
 
-  // Return the list of import schedules
+  auditLogger.info('Successfully scheduled import crons', { scheduled: imports.map(({ name }) => name) }); // Log the names of scheduled crons
+
   return { imports, isSuccessful: true, scheduled: imports.map(({ name }) => name) };
 };
-
 /**
  * Asynchronously triggers the import schedule process by executing a maintenance command.
  * It attempts to schedule import cron jobs and returns the results of this operation.
@@ -112,6 +131,11 @@ const importSchedule = async () => maintenanceCommand(
     try {
       // Attempt to import cron schedules and store the results.
       const scheduleResults = await scheduleImportCrons();
+      // Log the successful import operation using auditLogger
+      auditLogger.info('Import schedule operation successful', {
+        scheduleResults,
+        triggeredById,
+      });
       // Return an object indicating success and include the schedule results.
       // The operation is successful if the 'error' key is not present in the results.
       return {
@@ -120,6 +144,11 @@ const importSchedule = async () => maintenanceCommand(
         triggeredById,
       };
     } catch (err) {
+      // Log the failed import operation using auditLogger
+      auditLogger.error('Import schedule operation failed', {
+        error: err,
+        triggeredById,
+      });
       // If an error occurs during import, return an object indicating failure and the error.
       return { isSuccessful: false, error: err };
     }
@@ -155,6 +184,9 @@ const importDownload = async (id) => maintenanceCommand(
     try {
       // Attempt to download the import using the provided id.
       const downloadResults = await downloadImport(id);
+      // Log the download action for audit purposes
+      auditLogger.info('Import downloaded', { id, downloadResults });
+
       // Check if there are more items to download after the current batch.
       const [downloadMore, processMore] = await Promise.all([
         moreToDownload(id),
@@ -175,12 +207,17 @@ const importDownload = async (id) => maintenanceCommand(
           id,
         );
       }
+      // Log the success status and download results for audit purposes
+      auditLogger.info('Import download process completed', { id, downloadResults });
+
       // Return an object indicating the success status and include the download results.
       return {
         isSuccessful: !Object.keys(downloadResults).includes('error'),
         ...downloadResults,
       };
     } catch (err) {
+      // Log the error for audit purposes
+      auditLogger.error('Import download process failed', { id, error: err });
       // In case of an error, return an object indicating failure and the error itself.
       return { isSuccessful: false, error: err };
     }
@@ -232,6 +269,7 @@ const importProcess = async (id) => maintenanceCommand(
           ...processResults,
         };
       });
+      auditLogger.info(`Import process for ${id} completed successfully`);
       return result;
     } catch (err) {
       // In case of an error, return an object indicating the process was not successful and
@@ -270,14 +308,17 @@ const importMaintenance = async (job) => {
     // If the job type is import schedule, call the importSchedule function
     case MAINTENANCE_TYPE.IMPORT_SCHEDULE:
       action = await importSchedule();
+      auditLogger.info('Import schedule action performed');
       break;
     // If the job type is import download, call the importDownload function with the provided id
     case MAINTENANCE_TYPE.IMPORT_DOWNLOAD:
       action = await importDownload(id);
+      auditLogger.info('Import download action performed');
       break;
     // If the job type is import process, call the importProcess function with the provided id
     case MAINTENANCE_TYPE.IMPORT_PROCESS:
       action = await importProcess(id);
+      auditLogger.info('Import process action performed');
       break;
     // If the job type does not match any case, throw an error
     default:

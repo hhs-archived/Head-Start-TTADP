@@ -47,9 +47,11 @@ const onCompletedMaintenance = (job, result) => {
  * @param {function} processor - The function that processes the queue.
  */
 const addQueueProcessor = (category, processor) => {
-  // Assigns the processor function to the specified category in the queueProcessors object.
   if (!maintenanceQueueProcessors[category]) {
     maintenanceQueueProcessors[category] = processor;
+    auditLogger.info(`Processor added for category: ${category}`);
+  } else {
+    auditLogger.warn(`Attempt to add a processor for category ${category} which already has one.`);
   }
 };
 
@@ -59,8 +61,14 @@ const addQueueProcessor = (category, processor) => {
  * @param {string} category - The category to check for a queue processor.
  * @returns {boolean} - Returns true if the category has a queue processor, false otherwise.
  */
-const hasQueueProcessor = (category) => !!maintenanceQueueProcessors[category];
-
+const hasQueueProcessor = (category) => {
+  const hasProcessor = !!maintenanceQueueProcessors[category];
+  
+  // Log the audit information
+  auditLogger.info(`Checked for queue processor in category: ${category}, exists: ${hasProcessor}`);
+  
+  return hasProcessor;
+};
 /**
  * Removes a queue processor for a given category from the queueProcessors object.
  *
@@ -71,6 +79,11 @@ const removeQueueProcessor = (category) => {
   if (category in maintenanceQueueProcessors) {
     // If it does, delete the category and its corresponding queue processor
     delete maintenanceQueueProcessors[category];
+    // Log the removal of a queue processor
+    auditLogger.info(`Removed queue processor for category: ${category}`);
+  } else {
+    // Optionally, log an attempt to remove a non-existent processor
+    auditLogger.warn(`Attempted to remove non-existent queue processor for category: ${category}`);
   }
 };
 
@@ -87,7 +100,11 @@ const processMaintenanceQueue = () => {
 
   // Process each category in the queue using its corresponding processor
   Object.entries(maintenanceQueueProcessors)
-    .map(([category, processor]) => maintenanceQueue.process(category, processor));
+    .map(([category, processor]) => {
+      // Log the processing of each category
+      auditLogger.info(`Processing category: ${category}`);
+      maintenanceQueue.process(category, processor);
+    });
 };
 
 /**
@@ -108,6 +125,7 @@ const enqueueMaintenanceJob = async (
       try {
         // Add the job to the maintenance queue
         maintenanceQueue.add(category, data);
+        auditLogger.info(`Job for category ${category} added to the maintenance queue.`);
       } catch (err) {
         // Log any errors that occur when adding the job to the queue
         auditLogger.error(err);
@@ -129,7 +147,8 @@ const enqueueMaintenanceJob = async (
           lockManagers[`${category}-${data?.type}`] = lockManager;
         }
         await lockManager.executeWithLock(action, true);
-      } else {
+        auditLogger.info(`Lock acquired for category ${category} and type ${data?.type}.`);
+            } else {
         await action();
       }
     } else {
@@ -149,16 +168,25 @@ const enqueueMaintenanceJob = async (
  * @param {function} job - The function to be executed as the cron job.
  */
 const addCronJob = (category, type, jobCommand, schedule, name = '') => {
+  // Log the attempt to add a new cron job
+  auditLogger.info(`Attempting to add a new cron job: ${name}`);
+
   // Check if the category exists, if not create a new object for it
   if (!maintenanceCronJobs[category]) {
     maintenanceCronJobs[category] = {};
+    auditLogger.info(`Created new category for cron jobs: ${category}`);
   }
   if (!maintenanceCronJobs[category][type]) {
     maintenanceCronJobs[category][type] = {};
+    auditLogger.info(`Created new type for cron jobs in category ${category}: ${type}`);
   }
+
   // Accesses the maintenanceCronJobs object and sets the value of the specified category
   // and type to the provided job function.
   maintenanceCronJobs[category][type][name] = { jobCommand, schedule, started: false };
+
+  // Log the successful addition of the cron job
+  auditLogger.info(`Successfully added cron job: ${name} under category: ${category}, type: ${type}`);
 };
 
 /**
@@ -170,8 +198,19 @@ const addCronJob = (category, type, jobCommand, schedule, name = '') => {
  * @returns {boolean} - Returns true if a maintenance cron job exists for the given category
  * and type, otherwise returns false.
  */
-const hasCronJob = (category, type, name = '') => !!maintenanceCronJobs?.[category]?.[type]?.[name];
-
+const hasCronJob = (category, type, name = '') => {
+  const hasJob = !!maintenanceCronJobs?.[category]?.[type]?.[name];
+  
+  // Log the audit information
+  auditLogger.log('hasCronJob check', {
+    category,
+    type,
+    name,
+    hasJob
+  });
+  
+  return hasJob;
+};
 /**
  * Checks if a specific cron job has been started based on the given category and type.
  *
@@ -289,12 +328,20 @@ const createCategory = (category, typeJobs, timezone) => {
  * @returns {Array} - An array of categories containing their respective cron jobs.
  */
 const runMaintenanceCronJobs = (timezone = 'America/New_York') => {
+  // Log the start of the maintenance process
+  auditLogger.info(`Maintenance cron jobs started for timezone: ${timezone}`);
+
   const categories = Object.entries(maintenanceCronJobs)
     .reduce((acc, [category, typeJobs]) => {
+      // Log the processing of each category
+      auditLogger.info(`Processing category: ${category}`);
       const categoryObj = createCategory(category, typeJobs, timezone);
       acc[categoryObj.name] = categoryObj.jobs;
       return acc;
     }, {});
+
+  // Log the successful completion of the maintenance process
+  auditLogger.info('Maintenance cron jobs completed successfully');
 
   return categories;
 };
@@ -497,6 +544,7 @@ const maintenance = async (job) => {
 // The MAINTENANCE_CATEGORY.MAINTENANCE is used to identify the category of maintenance task.
 // The maintenance function is passed as the callback function to be executed when
 // a task in this category is processed.
+
 addQueueProcessor(MAINTENANCE_CATEGORY.MAINTENANCE, maintenance);
 
 // Adds a cron job with the specified maintenance category, type, and function to execute
@@ -506,27 +554,24 @@ addCronJob(
   // The function to execute takes in the category, type, timezone, and schedule parameters
   (category, type, timezone, schedule) => new CronJob(
     schedule, // The schedule parameter specifies when the job should run
-    () => enqueueMaintenanceJob(
-      MAINTENANCE_CATEGORY.MAINTENANCE, // constant representing the category of maintenance
-      {
-        type: MAINTENANCE_TYPE.CLEAR_MAINTENANCE_LOGS, // shorthand property notation for type: type
-        dateOffSet: 90, // otherwise, merge the provided data object
-      },
-    ),
+    () => {
+      auditLogger.info(`Cron job for clearing maintenance logs started. Category: ${category}, Type: ${type}`);
+      enqueueMaintenanceJob(
+        MAINTENANCE_CATEGORY.MAINTENANCE, // constant representing the category of maintenance
+        {
+          type: MAINTENANCE_TYPE.CLEAR_MAINTENANCE_LOGS, // shorthand property notation for type: type
+          dateOffSet: 90, // otherwise, merge the provided data object
+        },
+      );
+      auditLogger.info(`Cron job for clearing maintenance logs enqueued. Category: ${category}, Type: ${type}`);
+    },
     null,
     true,
     timezone, // The timezone parameter specifies the timezone in which the job should run
   ),
-  /**
-   * This cron expression breaks down as follows:
-   *  30 - The minute when the job will run (in this case, 30 minutes past the hour)
-   *  22 - The hour when the job will run (in this case, 10 pm)
-   *  * - The day of the month when the job will run (in this case, any day of the month)
-   *  * - The month when the job will run (in this case, any month)
-   *  * - The day of the week when the job will run (in this case, any day of the week)
-   * */
-  '30 22 * * *',
+  '30 22 * * *', // Cron expression for scheduling
 );
+
 
 module.exports = {
   // testing only exports
