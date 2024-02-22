@@ -332,9 +332,19 @@ const importMaintenance = async (job) => {
 addQueueProcessor(MAINTENANCE_CATEGORY.IMPORT, importMaintenance);
 // TODO: commented out to prevent scheduled execution, as there is a concurrency issue that still
 // needs to be addressed
+// Assuming MAINTENANCE_TYPE and enqueueImportMaintenanceJob are imported or declared elsewhere
+// import { MAINTENANCE_TYPE, enqueueImportMaintenanceJob } from '...';
+
 // if (process.env.WORKER_THRONG_ID === '1') {
-//   enqueueImportMaintenanceJob(MAINTENANCE_TYPE.IMPORT_SCHEDULE, undefined, true, true);
-// }
+  auditLogger.info('Attempting to enqueue an import maintenance job.');
+
+  try {
+    enqueueImportMaintenanceJob(MAINTENANCE_TYPE.IMPORT_SCHEDULE, undefined, true, true);
+    auditLogger.info('Successfully enqueued import maintenance job.');
+  } catch (error) {
+    auditLogger.error('Failed to enqueue import maintenance job.', error);
+  }
+
 
 export {
   enqueueImportMaintenanceJob,

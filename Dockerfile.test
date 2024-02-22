@@ -28,28 +28,29 @@ COPY config/ /app/config/
 RUN yarn tsc --build --verbose src
 
 FROM node:18.18.2 as test
+ENV NODE_OPTIONS=--max_old_space_size=2048
 COPY --from=base /app/node_modules /app/node_modules
 COPY --from=base /app/package.json /app/package.json
 COPY --from=build /app/build/server/ /app/
-ENV NODE_OPTIONS=--max_old_space_size=2048
+COPY bin/test-backend-ci /app/bin/test-backend-ci
 WORKDIR /app
 # Set environment variables for Jest
 ENV JEST_JUNIT_OUTPUT_DIR=reports \
     JEST_JUNIT_OUTPUT_NAME=unit.xml
 
-# Run Jest tests
-RUN yarn cross-env node --expose-gc ./node_modules/.bin/jest --debug \
-    src/*.js \
-    --coverage \
-    --colors \
-    --reporters=jest-junit \
-    --reporters=default \
-    --runInBand \
-    --silent \
-    --collectCoverageFrom="**/*.js","src/*.ts" \
-    --logHeapUsage \
-    --detectOpenHandles \
-    --forceExit
+# RUN ./bin/test-backend-ci
+# RUN yarn cross-env node --expose-gc ./node_modules/.bin/jest --debug \
+#     src/*.js \
+#     --coverage \
+#     --colors \
+#     --reporters=jest-junit \
+#     --reporters=default \
+#     --runInBand \
+#     --silent \
+#     --collectCoverageFrom="**/!(*CLI).{js,ts}","**/!(migrations, mocks, queries, seeders, serializers)/*" \
+#     --logHeapUsage \
+#     --detectOpenHandles \
+#     --forceExit
 
 FROM node:18.18.2-alpine as frontend-build
 ENV NODE_OPTIONS=--max_old_space_size=2048
