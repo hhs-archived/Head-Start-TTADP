@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const {
   // testing only
   maintenanceQueue,
+  removeCompletedJob, 
   onFailedMaintenance,
   onCompletedMaintenance,
   createMaintenanceLog,
@@ -39,6 +40,61 @@ jest.mock('../../logger', () => ({
     error: jest.fn(),
   },
 }));
+
+describe('removeCompletedJob', () => {
+  let mockJob;
+  let auditLogger;
+
+  beforeEach(() => {
+    mockJob = {
+      id: '123',
+      isCompleted: jest.fn(),
+      remove: jest.fn().mockResolvedValue(undefined),
+    };
+    global.auditLogger = { // Assuming auditLogger is a global variable
+      log: jest.fn(),
+      error: jest.fn(),
+    };
+  });
+
+  it('should remove a completed job and log the action', async () => {
+    mockJob.isCompleted.mockReturnValue(true);
+
+    await removeCompletedJob(mockJob);
+
+    expect(mockJob.isCompleted).toHaveBeenCalled();
+    expect(mockJob.remove).toHaveBeenCalled();
+    expect(auditLogger.log).toHaveBeenCalledWith(
+      'info',
+      `Removed completed job with ID ${mockJob.id}`
+    );
+  });
+
+  it('should not remove a job that is not completed', async () => {
+    mockJob.isCompleted.mockReturnValue(false);
+
+    await removeCompletedJob(mockJob);
+
+    expect(mockJob.isCompleted).toHaveBeenCalled();
+    expect(mockJob.remove).not.toHaveBeenCalled();
+    expect(auditLogger.log).not.toHaveBeenCalled();
+  });
+
+  it('should log an error if the job removal fails', async () => {
+    mockJob.isCompleted.mockReturnValue(true);
+    const error = new Error('Failed to remove job');
+    mockJob.remove.mockRejectedValue(error);
+
+    await removeCompletedJob(mockJob);
+
+    expect(mockJob.isCompleted).toHaveBeenCalled();
+    expect(mockJob.remove).toHaveBeenCalled();
+    expect(auditLogger.error).toHaveBeenCalledWith(
+      `Error removing job: ${mockJob.id}`,
+      error
+    );
+  });
+});
 
 describe('Maintenance Queue', () => {
   afterEach(() => {
