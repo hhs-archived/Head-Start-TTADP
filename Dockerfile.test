@@ -27,7 +27,7 @@ COPY tests/ /app/tests/
 COPY config/ /app/config/
 RUN yarn tsc --build --verbose src
 
-FROM node:18.18.2 as test
+FROM node:18.18.2 as test-backend
 ENV NODE_OPTIONS=--max_old_space_size=2048
 COPY --from=base /app/node_modules /app/node_modules
 COPY --from=base /app/package.json /app/package.json
@@ -70,17 +70,3 @@ COPY --chown=node:node --from=frontend-build /app/node_modules /app/node_modules
 COPY --chown=node:node --from=frontend-build /app/package.json /app/package.json
 USER node
 # CMD ["/usr/bin/dumb-init", "node", "server.js"]
-
-FROM node:18.18.2-slim as backend
-WORKDIR /app
-COPY --chown=node:node .sequelizerc /app/.sequelizerc
-COPY --chown=node:node --from=base /usr/bin/dumb-init /usr/bin/dumb-init
-COPY --chown=node:node --from=build /app/build /app
-COPY --chown=node:node --from=build /app/node_modules/ /app/node_modules/
-COPY --chown=node:node --from=build /app/package.json /app/package.json
-USER node
-# CMD ["dumb-init", "node", "server.js"]
-
-FROM backend as worker
-
-FROM backend as testingonly

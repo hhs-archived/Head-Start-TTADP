@@ -9,20 +9,23 @@ services:
         - node:18.18.2-slim
         - node:18.18.2-alpine
         - head-start-ttadp-backend:latest
-      target: backend
-    command: yarn server
+      target: test-backend
+    env_file: .env
+    command: bash bin/test-backend-ci
     user: ${CURRENT_USER:-root}
     ports:
-      - "8080:8080"
+      - "8181:8080"
     depends_on:
-      - test-db
-    environment:
-      - POSTGRES_HOST=test-db
+      - db
+      - redis
     extra_hosts:
       - "${ITAMS_MD_HOST:-sftp.itams.ohs.acf.hhs.gov}:0.0.0.0"
     volumes:
-      - "./src/:/app/src/:rw"
+      - "./docs/:/docs/:rw"
       - "./tests/:/app/tests/:rw"
+      - "./temp/:/app/temp/:rw"
+      - "./reports/:/app/reports/:rw"
+      - "./coverage/:/app/coverage/:rw"
       - "./config/:/app/config:rw"
       - "./packages:/packages:ro"
       - ".env:/app/.env:ro"
@@ -48,25 +51,5 @@ services:
       - "./frontend/scripts:/app/scripts:rw"
       - "./frontend/package.json:/app/package.json:rw"
       - "./packages:/packages:ro"
-      - ".env:/app/.env:ro"
-  test-worker:
-    build:
-      context: .
-      dockerfile: ./Dockerfile.test
-      cache_from: 
-        - node:18.18.2  # Using the base image as a cache source
-        - node:18.18.2-slim
-        - node:18.18.2-alpine
-        - head-start-ttadp-worker:latest
-      target: backend
-    command: yarn worker
-    env_file: .env
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - "./src/:/app/src/:rw"
-      - "./tests/:/app/tests/:rw"
-      - "./config/:/app/config:rw"
       - ".env:/app/.env:ro"
 
