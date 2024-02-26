@@ -30,6 +30,7 @@ main(){
 		--colors \
 		--reporters=jest-junit \
 		--reporters=default \
+		--reporters=lcov \
 		--runInBand \
 		--silent \
 		--colors \

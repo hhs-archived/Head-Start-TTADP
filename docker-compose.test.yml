@@ -22,6 +22,7 @@ services:
       - "${ITAMS_MD_HOST:-sftp.itams.ohs.acf.hhs.gov}:0.0.0.0"
     volumes:
       - "./docs/:/docs/:rw"
+      - "./.git/:/app/.git:rw"
       - "./tests/:/app/tests/:rw"
       - "./temp/:/app/temp/:rw"
       - "./reports/:/app/reports/:rw"

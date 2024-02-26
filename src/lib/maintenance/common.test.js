@@ -22,6 +22,7 @@ const { MAINTENANCE_TYPE, MAINTENANCE_CATEGORY } = require('../../constants');
 
 const { MaintenanceLog } = require('../../models');
 const { auditLogger, logger } = require('../../logger');
+const { default: LockManager } = require('../lockManager');
 
 jest.mock('../../models', () => ({
   MaintenanceLog: {
@@ -111,18 +112,53 @@ describe('Maintenance Queue', () => {
   });
 
   describe('onCompletedMaintenance', () => {
-    it('should log successful maintenance when result is not null', () => {
-      const job = { name: 'test-job', data: { type: 'test-type' } };
-      const result = 'test-result';
-      onCompletedMaintenance(job, result);
-      expect(logger.info).toHaveBeenCalledWith(`Successfully performed ${job.name} maintenance for ${job.data.type}`);
+    beforeEach(() => {
+      // Clear all mocks before each test
+      info.mockClear();
+      error.mockClear();
+      removeCompletedJob.mockClear();
     });
-
-    it('should log failed maintenance when result is null', () => {
-      const job = { name: 'test-job', data: { type: 'test-type' } };
-      const result = null;
+  
+    it('should log success and remove job when result is not null', () => {
+      const job = {
+        name: 'TestJob',
+        data: { type: 'TestType' },
+      };
+      const result = { success: true };
+  
       onCompletedMaintenance(job, result);
-      expect(logger.error).toHaveBeenCalledWith(`Failed to perform ${job.name} maintenance for ${job.data.type}`);
+  
+      expect(info).toHaveBeenCalledWith(`Successfully performed ${job.name} maintenance for ${job.data?.type}`);
+      expect(error).not.toHaveBeenCalled();
+      expect(removeCompletedJob).toHaveBeenCalledWith(job);
+    });
+  
+    it('should log error and remove job when result is null', () => {
+      const job = {
+        name: 'TestJob',
+        data: { type: 'TestType' },
+      };
+      const result = null;
+  
+      onCompletedMaintenance(job, result);
+  
+      expect(error).toHaveBeenCalledWith(`Failed to perform ${job.name} maintenance for ${job.data?.type}`);
+      expect(info).not.toHaveBeenCalled();
+      expect(removeCompletedJob).toHaveBeenCalledWith(job);
+    });
+  
+    it('should handle missing job data type gracefully', () => {
+      const job = {
+        name: 'TestJob',
+        data: {},
+      };
+      const result = { success: true };
+  
+      onCompletedMaintenance(job, result);
+  
+      expect(info).toHaveBeenCalledWith(`Successfully performed ${job.name} maintenance for ${job.data?.type}`);
+      expect(error).not.toHaveBeenCalled();
+      expect(removeCompletedJob).toHaveBeenCalledWith(job);
     });
   });
 
