@@ -20,6 +20,7 @@ import db, {
   ActivityReportObjectiveResource,
   ActivityReportObjectiveTopic,
   ActivityReportObjectiveCourse,
+  ActivityReportGoalFieldResponse,
   CollaboratorRole,
   Resource,
   Topic,
@@ -122,7 +123,7 @@ describe('cacheCourses', () => {
     await Objective.destroy({ where: { id: objective.id }, force: true });
     await Goal.destroy({ where: { id: goal.id }, force: true });
     await destroyReport(activityReport);
-    await Grant.destroy({ where: { id: grant.id } });
+    await Grant.destroy({ where: { id: grant.id }, individualHooks: true });
     await Recipient.destroy({ where: { id: recipient.id } });
   });
 
@@ -222,7 +223,9 @@ describe('cacheGoalMetadata', () => {
 
     expect(arg[0].dataValues).toMatchObject(data);
 
-    await cacheGoalMetadata(goal, activityReport.id, true);
+    jest.spyOn(ActivityReportGoalFieldResponse, 'destroy');
+
+    await cacheGoalMetadata(goal, activityReport.id, true, [], true);
 
     arg = await ActivityReportGoal.findAll({
       where: {
@@ -237,6 +240,8 @@ describe('cacheGoalMetadata', () => {
     };
     expect(arg).toHaveLength(1);
     expect(arg[0].dataValues).toMatchObject(updatedData);
+
+    expect(ActivityReportGoalFieldResponse.destroy).toHaveBeenCalled();
   });
 });
 
@@ -448,7 +453,7 @@ describe('cacheObjectiveMetadata', () => {
     await ActivityReport.destroy({ where: { id: report.id } });
     await Objective.destroy({ where: { id: objective.id }, force: true });
     await Goal.destroy({ where: { id: goal.id }, force: true });
-    await Grant.destroy({ where: { id: grant.id } });
+    await Grant.destroy({ where: { id: grant.id }, individualHooks: true });
     await Course.destroy({ where: { id: [courseOne.id, courseTwo.id] } });
     await Recipient.destroy({ where: { id: recipient.id } });
     await Promise.all(roles.map(async (role) => CollaboratorRole.destroy({

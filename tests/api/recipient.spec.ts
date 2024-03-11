@@ -89,6 +89,7 @@ test.describe('get /recipient', () => {
       deleted: Joi.boolean().allow(null),
       inactivationDate: Joi.any().allow(null),
       inactivationReason: Joi.any().allow(null),
+      recipientNameWithPrograms: Joi.string(),
       recipient: Joi.object({
         id: Joi.number().integer().positive(),
         uei: Joi.any().allow(null),
@@ -184,18 +185,9 @@ test.describe('get /recipient', () => {
       Joi.object({
         id: Joi.number(),
         isCurated: Joi.boolean(),
-        prompts: Joi.array().items(
-          Joi.object({
-            id: Joi.number(),
-            title: Joi.string(),
-            response: Joi.array().items(
-              Joi.string()
-            ),
-            prompt: Joi.string(),     
-           }),
-          ),                  
+        prompts: Joi.object(),                 
         name: Joi.string(),
-        source: Joi.string().allow(null),
+        source: Joi.object(),
         goalTemplateId: Joi.number().allow(null),
         status: Joi.string(),
         regionId: Joi.number(),
