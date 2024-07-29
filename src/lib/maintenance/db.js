@@ -9,6 +9,7 @@ const {
   addCronJob,
 } = require('./common');
 
+console.log('asdf sequelize', sequelize);
 const numOfModels = Object.values(sequelize.models).length;
 
 /**

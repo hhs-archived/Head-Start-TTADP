@@ -7,7 +7,6 @@ import {
   submittedDigest,
   recipientApprovedDigest,
 } from './mailer';
-import { runMaintenanceCronJobs } from './maintenance';
 import {
   DIGEST_SUBJECT_FREQ, EMAIL_DIGEST_FREQ,
 } from '../constants';
@@ -99,7 +98,7 @@ const runMonthlyEmailJob = () => {
 /**
  * Runs the application's cron jobs
  */
-export default function runCronJobs() {
+export default async function runCronJobs() {
   // Run only on one instance
   if (process.env.CF_INSTANCE_INDEX === '0' && process.env.NODE_ENV === 'production') {
     // disable updates for non-production environments
@@ -114,6 +113,6 @@ export default function runCronJobs() {
     const monthlyJob = new CronJob(monthlySched, () => runMonthlyEmailJob(), null, true, timezone);
     monthlyJob.start();
 
-    runMaintenanceCronJobs(timezone);
+    (await import('./maintenance')).runMaintenanceCronJobs(timezone);
   }
 }

@@ -1,11 +1,12 @@
 import { Op } from 'sequelize';
 import { uniq } from 'lodash';
 import { DECIMAL_BASE } from '@ttahub/common';
-import { Permission } from '../models';
+import db from '../models';
 import { auditLogger as logger } from '../logger';
 import SCOPES from '../middleware/scopeConstants';
 import { userById } from './users';
 
+const { Permission } = db;
 const { SITE_ACCESS, ADMIN } = SCOPES;
 
 const namespace = 'SERVICE:ACCESS_VALIDATION';

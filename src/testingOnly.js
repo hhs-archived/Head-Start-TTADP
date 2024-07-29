@@ -3,6 +3,9 @@ import express from 'express';
 import {} from 'dotenv/config';
 import { auditLogger } from './logger';
 import testingRouter from './routes/testingOnly';
+import { loadModels } from './models';
+
+loadModels();
 
 const app = express();
 

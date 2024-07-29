@@ -6,21 +6,9 @@ if (process.env.NODE_ENV === 'production') {
 
 import {} from 'dotenv/config';
 import throng from 'throng';
-import {
-  processScanQueue,
-} from './services/scanQueue';
-import {
-  processResourceQueue,
-} from './services/resourceQueue';
-import {
-  processS3Queue,
-} from './services/s3Queue';
-import {
-  processNotificationQueue,
-} from './lib/mailer';
-import {
-  processMaintenanceQueue,
-} from './lib/maintenance';
+import { loadModels } from "./models";
+
+loadModels();
 
 // Number of workers to spawn
 const workers = process.env.WORKER_CONCURRENCY || 2;
@@ -28,19 +16,19 @@ const workers = process.env.WORKER_CONCURRENCY || 2;
 // Pull jobs off the redis queue and process them.
 async function start(context: { id: number }) {
   // File Scanning Queue
-  processScanQueue();
+  (await import('./services/scanQueue')).processScanQueue();
 
   // S3 Queue.
-  processS3Queue();
+  (await import('./services/s3Queue')).processS3Queue();
 
   // Resource Queue.
-  processResourceQueue();
+  (await import('./services/resourceQueue')).processResourceQueue();
 
   // Notifications Queue
-  processNotificationQueue();
+  (await import('./lib/mailer')).processNotificationQueue();
 
   // Maintenance Queue
-  processMaintenanceQueue();
+  (await import('./lib/maintenance')).processMaintenanceQueue();
 }
 
 // spawn workers and start them
