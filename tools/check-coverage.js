@@ -75,12 +75,15 @@ async function getModifiedLines(directory) {
   // If a directory is provided, filter files that start with the directory
   if (directory && directory.length !== 0) {
     files = files.filter((file) => file.includes(`${directory}/`));
+<<<<<<< HEAD
   } else {
     // Directories that are tested in non-defualt path
     files = files
       .filter((file) => !file.includes('packages/common/'))
       .filter((file) => !file.includes('similarity_api/'))
       .filter((file) => file.includes(`frontend/`));
+=======
+>>>>>>> e3c8e9616 (better filtering)
   }
   // eslint-disable-next-line no-console
   console.log('files:', files);
