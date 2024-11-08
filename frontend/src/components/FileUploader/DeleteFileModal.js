@@ -18,7 +18,7 @@ const DeleteFileModal = ({
         modalId="DeleteFileModal"
         title="Delete File"
         okButtonText="Delete"
-        okButtonAriaLabel="Confirm delete"
+        okButtonAriaLabel="This button will permanently delete the file."
       >
         <p>
           Are you sure you want to delete

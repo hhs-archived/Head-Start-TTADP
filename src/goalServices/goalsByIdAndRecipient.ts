@@ -49,7 +49,6 @@ const OPTIONS_FOR_GOAL_FORM_QUERY = (id: number[] | number, recipientId: number)
     'name',
     'status',
     'source',
-    'isSourceEditable',
     'onAR',
     'onApprovedAR',
     'id',
@@ -234,7 +233,6 @@ export default async function goalsByIdAndRecipient(ids: number | number[], reci
 
   const reformattedGoals = goals.map((goal) => ({
     ...goal,
-    isSourceEditable: goal.isSourceEditable,
     isReopenedGoal: wasGoalPreviouslyClosed(goal),
     objectives: goal.objectives
       .map((objective: IObjectiveModelInstance) => ({

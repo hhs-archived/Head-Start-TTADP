@@ -63,17 +63,9 @@ LabelWrapper.defaultProps = {
 };
 
 function FormItem({
-  label,
-  hint,
-  children,
-  required,
-  name,
-  fieldSetWrapper,
-  className,
-  htmlFor,
+  label, children, required, name, fieldSetWrapper, className, htmlFor,
 }) {
   const { formState: { errors } } = useFormContext();
-
   const fieldErrors = errors[name];
   const labelWithRequiredTag = (
     <>
@@ -92,13 +84,6 @@ function FormItem({
   return (
     <FormGroup error={fieldErrors}>
       <LabelType htmlFor={htmlFor} label={labelWithRequiredTag} className={className}>
-        {hint && (
-        <>
-          <br />
-          <span className="usa-hint">{hint}</span>
-          <br />
-        </>
-        )}
         <ReactHookFormError
           errors={errors}
           name={name}
@@ -118,7 +103,6 @@ FormItem.propTypes = {
   required: PropTypes.bool,
   className: PropTypes.string,
   htmlFor: PropTypes.string,
-  hint: PropTypes.string,
 };
 
 FormItem.defaultProps = {
@@ -126,7 +110,6 @@ FormItem.defaultProps = {
   fieldSetWrapper: false,
   className: '',
   htmlFor: '',
-  hint: '',
 };
 
 export default FormItem;

@@ -1,11 +1,10 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { FormProvider, useForm } from 'react-hook-form';
 import SimilarGoals from '../SimilarGoals';
 
 describe('SimilarGoal', () => {
-  const defaultSimilar = [
+  const similar = [
     {
       id: 1,
       name: 'Similar goal 1',
@@ -18,39 +17,15 @@ describe('SimilarGoal', () => {
     },
   ];
   const setDismissSimilar = jest.fn();
-
-  // eslint-disable-next-line react/prop-types
-  const RenderTest = ({ dismissSimilar = false, similar = defaultSimilar }) => {
-    const hookForm = useForm({
-      mode: 'onBlur',
-      defaultValues: {
-        similarGoals: null, // the IDS of a goal from the similarity API
-        goalIds: [], // the goal ids that the user has selected
-        selectedGrants: [], // the grants that the user has selected
-        goalName: '', // the goal name in the textbox
-        goalStatus: '', // the status of the goal, only tracked to display in alerts
-        goalSource: '', // only used for curated templates
-        goalStatusReason: '',
-        useOhsInitiativeGoal: false, // the checkbox to toggle the controls
-        isGoalNameEditable: true,
-      },
-      shouldUnregister: false,
-    });
-    return (
-      // eslint-disable-next-line react/jsx-props-no-spreading
-      <FormProvider {...hookForm}>
-        <SimilarGoals
-          similar={similar}
-          dismissSimilar={dismissSimilar}
-          setDismissSimilar={setDismissSimilar}
-        />
-      </FormProvider>
-    );
-  };
+  const onSelectNudgedGoal = jest.fn();
 
   it('renders similar goals', () => {
     render(
-      <RenderTest />,
+      <SimilarGoals
+        similar={similar}
+        setDismissSimilar={setDismissSimilar}
+        onSelectNudgedGoal={onSelectNudgedGoal}
+      />,
     );
 
     expect(screen.getByText('Similar goals (2)')).toBeInTheDocument();
@@ -60,28 +35,27 @@ describe('SimilarGoal', () => {
 
   it('calls setDismissSimilar when close button is clicked', () => {
     render(
-      <RenderTest />,
+      <SimilarGoals
+        similar={similar}
+        setDismissSimilar={setDismissSimilar}
+        onSelectNudgedGoal={onSelectNudgedGoal}
+      />,
     );
 
     userEvent.click(screen.getByLabelText('Dismiss similar goals'));
     expect(setDismissSimilar).toHaveBeenCalledTimes(1);
   });
 
-  it('renders nothing if menu is forced close', () => {
+  it('calls onSelectNudgedGoal when a similar goal is clicked', () => {
     render(
-      <RenderTest dismissSimilar />,
+      <SimilarGoals
+        similar={similar}
+        setDismissSimilar={setDismissSimilar}
+        onSelectNudgedGoal={onSelectNudgedGoal}
+      />,
     );
 
-    const similarDiv = document.querySelector('.ttahub-similar-goals');
-    expect(similarDiv).toBeNull();
-  });
-
-  it('renders nothing if no similar goals are passed in', () => {
-    render(
-      <RenderTest similar={[]} />,
-    );
-
-    const similarDiv = document.querySelector('.ttahub-similar-goals');
-    expect(similarDiv).toBeNull();
+    userEvent.click(screen.getByText('Similar goal 1'));
+    expect(onSelectNudgedGoal).toHaveBeenCalledTimes(1);
   });
 });

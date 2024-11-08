@@ -40,7 +40,6 @@ const GP = ({ availableGoals, selectedGoals, goalForEditing, goalTemplates }) =>
         role: 'central office',
       },
       collaborators: [],
-      activityRecipients: [{ activityRecipientId: 1 }],
     },
   });
 
@@ -255,6 +254,9 @@ describe('GoalPicker', () => {
       });
 
       selector = screen.queryByLabelText(/Select recipient's goal*/i);
+      expect(selector).toBeNull();
+
+      selector = await screen.findByLabelText(/Select ohs standard goal/i);
 
       fireEvent.focus(selector);
       fireEvent.keyDown(selector, {
@@ -281,10 +283,6 @@ describe('GoalPicker', () => {
           prompt: 'WHYYYYYYYY?',
         },
       ]);
-      fetchMock.get('/api/goal-templates/1/source?grantIds=1', {
-        source: 'source',
-      });
-
       const availableGoals = [{
         label: 'Goal 1',
         value: 1,
@@ -293,25 +291,17 @@ describe('GoalPicker', () => {
         goalTemplateId: 1,
       }];
 
-      act(() => {
-        renderGoalPicker(availableGoals, null);
-      });
+      renderGoalPicker(availableGoals, null);
 
       const selector = await screen.findByLabelText(/Select recipient's goal*/i);
       const [availableGoal] = availableGoals;
 
-      await act(async () => {
-        await selectEvent.select(selector, [availableGoal.label]);
-      });
+      await selectEvent.select(selector, [availableGoal.label]);
 
       const input = document.querySelector('[name="goalForEditing"]');
       expect(input.value).toBe(availableGoal.value.toString());
     });
     it('with prompts', async () => {
-      fetchMock.get('/api/goal-templates/1/source?grantIds=1', {
-        source: 'source',
-      });
-
       fetchMock.get('/api/goal-templates/1/prompts?goalIds=1', [
         {
           type: 'multiselect',
@@ -331,16 +321,12 @@ describe('GoalPicker', () => {
         goalTemplateId: 1,
       }];
 
-      act(() => {
-        renderGoalPicker(availableGoals, null);
-      });
+      renderGoalPicker(availableGoals, null);
 
       const selector = await screen.findByLabelText(/Select recipient's goal*/i);
       const [availableGoal] = availableGoals;
 
-      await act(async () => {
-        await selectEvent.select(selector, [availableGoal.label]);
-      });
+      await selectEvent.select(selector, [availableGoal.label]);
 
       const input = document.querySelector('[name="goalForEditing"]');
       expect(input.value).toBe(availableGoal.value.toString());

@@ -149,9 +149,6 @@ describe('Goals DB service', () => {
           ['name', 'label'],
           'id',
           'name',
-          'isSourceEditable',
-          'onApprovedAR',
-          'source',
         ],
         where: {
           id: mockGoalId,

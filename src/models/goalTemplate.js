@@ -67,12 +67,6 @@ export default (sequelize, DataTypes) => {
       allowNull: true,
       type: DataTypes.STRING,
     },
-    isSourceEditable: {
-      type: DataTypes.VIRTUAL,
-      get() {
-        return this.source === null;
-      },
-    },
   }, {
     sequelize,
     modelName: 'GoalTemplate',

@@ -236,7 +236,6 @@ interface IGoal {
   grantIds: number[];
   isNew: boolean;
   isReopenedGoal: boolean;
-  isSourceEditable: boolean;
   collaborators: {
     goalNumber: string;
     goalCreator: IGoalCollaborator;
@@ -283,7 +282,6 @@ interface IReducedGoal {
     goalCreatorRoles: string;
   }[];
   activityReportGoals?: IActivityReportGoal[];
-  isSourceEditable: boolean;
 }
 
 interface IGoalModelInstance extends IGoal {

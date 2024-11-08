@@ -51,26 +51,22 @@ export default function GoalCardsHeader({
 
   useEffect(() => {
     async function getSimilarGoals() {
-      try {
-        const data = await similarity(regionId, recipientId);
-        /*
-        * expecting a response in the below format
-        * @returns {
-        *  goals: [{
-        *    name: string,
-        *    source: string,
-        *    status: string,
-        *    responsesForComparison: string,
-        *    ids: number[],
-        *  }],
-        *  ids: number[]
-        * }[]
-        */
+      const data = await similarity(regionId, recipientId);
+      /*
+      * expecting a response in the below format
+      * @returns {
+      *  goals: [{
+      *    name: string,
+      *    source: string,
+      *    status: string,
+      *    responsesForComparison: string,
+      *    ids: number[],
+      *  }],
+      *  ids: number[]
+      * }[]
+      */
 
-        setGoalMergeGroups(data.filter((g) => g.goals.length > 1));
-      } catch (err) {
-        setGoalMergeGroups([]);
-      }
+      setGoalMergeGroups(data.filter((g) => g.goals.length > 1));
     }
 
     if (canMergeGoals) {

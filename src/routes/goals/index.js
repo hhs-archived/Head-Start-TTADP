@@ -9,18 +9,12 @@ import {
   getSimilarGoalsForRecipient,
   getSimilarGoalsByText,
   getMissingDataForActivityReport,
-  createGoalsFromTemplate,
 } from './handlers';
 import transactionWrapper from '../transactionWrapper';
-import { checkRegionIdParam, checkRecipientIdParam, checkGoalTemplateIdParam } from '../../middleware/checkIdParamMiddleware';
+import { checkRegionIdParam, checkRecipientIdParam } from '../../middleware/checkIdParamMiddleware';
 
 const router = express.Router();
 router.post('/', transactionWrapper(createGoals));
-router.post(
-  '/template/:goalTemplateId',
-  checkGoalTemplateIdParam,
-  transactionWrapper(createGoalsFromTemplate),
-);
 router.get('/', transactionWrapper(retrieveGoalsByIds));
 router.get(
   '/recipient/:recipientId/region/:regionId/nudge',

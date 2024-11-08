@@ -44,13 +44,11 @@ jest.mock('express-http-context', () => {
 
 describe('mergeGoals', () => {
   let recipient;
-  let grantZero;
   let grantOne;
   let grantTwo;
   let grantThree;
   let report;
   let template;
-  let goalZero;
   let goalOne;
   let goalTwo;
   let goalThree;
@@ -82,16 +80,6 @@ describe('mergeGoals', () => {
     });
 
     // Grant.
-    grantZero = await Grant.create({
-      id: faker.datatype.number({ min: 9999 }),
-      number: faker.datatype.string(),
-      recipientId: recipient.id,
-      regionId: 1,
-      startDate: new Date(),
-      endDate: new Date(),
-      status: 'Inactive',
-    });
-
     grantOne = await Grant.create({
       id: faker.datatype.number({ min: 9999 }),
       number: faker.datatype.string(),
@@ -120,12 +108,6 @@ describe('mergeGoals', () => {
       startDate: new Date(),
       endDate: new Date(),
       status: 'Active',
-    });
-
-    await GrantReplacements.create({
-      replacedGrantId: grantZero.id,
-      replacingGrantId: grantTwo.id,
-      replacementDate: new Date(),
     });
 
     await GrantReplacements.create({
@@ -159,16 +141,6 @@ describe('mergeGoals', () => {
       isFromSmartsheetTtaPlan: false,
       onApprovedAR: false,
       grantId: grantOne.id,
-      createdVia: 'rtr',
-    });
-
-    goalZero = await Goal.create({
-      name: `Selected goal 0${faker.animal.dog() + faker.datatype.string(100)}`,
-      status: GOAL_STATUS.IN_PROGRESS,
-      endDate: null,
-      isFromSmartsheetTtaPlan: false,
-      onApprovedAR: false,
-      grantId: grantZero.id,
       createdVia: 'rtr',
     });
 
@@ -309,7 +281,6 @@ describe('mergeGoals', () => {
         where: {
           goalId: [
             oldGoal.id,
-            goalZero.id,
             goalOne.id,
             goalTwo.id,
             goalThree.id,
@@ -337,25 +308,12 @@ describe('mergeGoals', () => {
 
     similarityGroup = await createSimilarityGroup(
       recipient.id,
-      [{
-        ids: [
-          goalZero.id,
-          goalOne.id,
-          goalTwo.id,
-          goalThree.id,
-        ],
-        excludedIfNotAdmin: false,
-      }],
+      [{ ids: [goalOne.id, goalTwo.id, goalThree.id], excludedIfNotAdmin: false }],
     );
 
     mergedGoals = await mergeGoals(
       goalOne.id,
-      [
-        goalZero.id,
-        goalOne.id,
-        goalTwo.id,
-        goalThree.id,
-      ],
+      [goalOne.id, goalTwo.id, goalThree.id],
       similarityGroup.id,
     );
     mergedGoalIds = mergedGoals.map((goal) => goal.id);
@@ -376,14 +334,13 @@ describe('mergeGoals', () => {
     expect(mergedGoals.length).toBe(2);
 
     // verify that new goals were created
-    expect(mergedGoalIds).not.toContain(goalZero.id);
     expect(mergedGoalIds).not.toContain(goalOne.id);
     expect(mergedGoalIds).not.toContain(goalTwo.id);
     expect(mergedGoalIds).not.toContain(goalThree.id);
 
     const goalsThatAreMergedAway = await Goal.unscoped().findAll({
       where: {
-        id: [goalZero.id, goalOne.id, goalTwo.id, goalThree.id],
+        id: [goalOne.id, goalTwo.id, goalThree.id],
       },
       attributes: ['id', 'mapsToParentGoalId'],
       include: [
@@ -413,7 +370,7 @@ describe('mergeGoals', () => {
       ],
     });
 
-    expect(goalsThatAreMergedAway.length).toBe(4);
+    expect(goalsThatAreMergedAway.length).toBe(3);
     const mapsToParentGoalIds = goalsThatAreMergedAway.map((goal) => goal.mapsToParentGoalId)
       .sort();
 
@@ -421,12 +378,8 @@ describe('mergeGoals', () => {
     const otherMergedGoal = mergedGoals.find((g) => g.id !== mergedGoalFromGrantOne.id);
 
     expect(
-      [...(new Set([
-        mergedGoalFromGrantOne.id,
-        mergedGoalFromGrantOne.id,
-        otherMergedGoal.id,
-      ]))].sort(),
-    ).toEqual([...(new Set(mapsToParentGoalIds))]);
+      [mergedGoalFromGrantOne.id, mergedGoalFromGrantOne.id, otherMergedGoal.id].sort(),
+    ).toEqual(mapsToParentGoalIds);
 
     goalsThatAreMergedAway.forEach((goal) => {
       const creator = goal.goalCollaborators

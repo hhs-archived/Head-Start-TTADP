@@ -221,7 +221,7 @@ DECLARE
 BEGIN
 ---------------------------------------------------------------------------------------------------
 -- Step 0.1: make a table to hold applied filters
-  DROP TABLE IF EXISTS process_log;
+  -- DROP TABLE IF EXISTS process_log;
   CREATE TEMP TABLE IF NOT EXISTS process_log(
     action TEXT,
     record_cnt int,
@@ -230,16 +230,14 @@ BEGIN
 
 ---------------------------------------------------------------------------------------------------
 -- Step 1.1: Seed filtered_grants
-  DROP TABLE IF EXISTS filtered_grants;
+  -- DROP TABLE IF EXISTS filtered_grants;
   CREATE TEMP TABLE IF NOT EXISTS filtered_grants (id INT);
 
   WITH seed_filtered_grants AS (
       INSERT INTO filtered_grants (id)
-      SELECT
-        id
+      SELECT DISTINCT id
       FROM "Grants"
       WHERE COALESCE(deleted, false) = false
-      GROUP BY 1
       ORDER BY 1
       RETURNING id
   )
@@ -301,16 +299,13 @@ BEGIN
           region_ids_filter IS NULL
           OR COALESCE(region_ids_filter, '[]')::jsonb @> to_jsonb(gr."regionId") != region_ids_not_filter
         )
-        GROUP BY 1
         ORDER BY 1
       ),
       applied_filtered_out_grants AS (
-        SELECT
-          fgr.id
+        SELECT fgr.id
         FROM filtered_grants fgr
         LEFT JOIN applied_filtered_grants afgr ON fgr.id = afgr.id
-        GROUP BY 1
-        HAVING COUNT(afgr.id) = 0
+        WHERE afgr.id IS NULL
         ORDER BY 1
       ),
       delete_from_grant_filter AS (
@@ -327,21 +322,19 @@ BEGIN
 
 ---------------------------------------------------------------------------------------------------
 -- Step 3.1: Seed filtered_activity_reports
-  DROP TABLE IF EXISTS filtered_activity_reports;
+  -- DROP TABLE IF EXISTS filtered_activity_reports;
   CREATE TEMP TABLE IF NOT EXISTS filtered_activity_reports (id INT);
 
   WITH seed_filtered_activity_reports AS (
       INSERT INTO filtered_activity_reports (id)
-      SELECT
-        a.id
+      SELECT DISTINCT a.id
       FROM "ActivityReports" a
       JOIN "ActivityRecipients" ar ON a.id = ar."activityReportId"
       JOIN filtered_grants fgr ON ar."grantId" = fgr.id
       JOIN "ActivityReportGoals" arg ON a.id = arg."activityReportId"
       --JOIN filtered_goals fg ON arg."goalId" = fg.id
       WHERE a."calculatedStatus" = 'approved'
-      GROUP BY 1
-      ORDER BY 1
+      ORDER BY a.id
       RETURNING id
   )
   INSERT INTO process_log (action, record_cnt)
@@ -357,8 +350,7 @@ BEGIN
     THEN
     WITH
       applied_filtered_activity_reports AS (
-        SELECT
-          a.id
+        SELECT a.id
         FROM filtered_activity_reports fa
         JOIN "ActivityReports" a ON fa.id = a.id
         WHERE a."calculatedStatus" = 'approved'
@@ -384,16 +376,12 @@ BEGIN
             FROM json_array_elements_text(COALESCE(end_date_filter, '[]')::json) AS value
           ) != end_date_not_filter
         )
-        GROUP BY 1
-        ORDER BY 1
       ),
       applied_filtered_out_activity_reports AS (
-        SELECT 
-          fa.id
+        SELECT fa.id
         FROM filtered_activity_reports fa
         LEFT JOIN applied_filtered_activity_reports afa ON fa.id = afa.id
-        GROUP BY 1
-        HAVING COUNT(afa.id) = 0
+        WHERE afa.id IS NULL
         ORDER BY 1
       ),
       delete_from_activity_report_filter AS (
@@ -411,20 +399,15 @@ BEGIN
 ---------------------------------------------------------------------------------------------------
 -- Step 3.3: Update filtered_grants based on the reduced filtered_activity_reports dataset
 WITH reduced_grants AS (
-    SELECT
-      ar."grantId"
+    SELECT DISTINCT ar."grantId"
     FROM filtered_activity_reports fa
     JOIN "ActivityRecipients" ar ON fa.id = ar."activityReportId"
-    GROUP BY 1
-    ORDER BY 1
 ),
 applied_filtered_out_grants AS (
-    SELECT
-      fgr.id
+    SELECT fgr.id
     FROM filtered_grants fgr
     LEFT JOIN reduced_grants rg ON fgr.id = rg."grantId"
-    GROUP BY 1
-    HAVING COUNT(rg."grantId") = 0
+    WHERE rg."grantId" IS NULL
     ORDER BY 1
 ),
 delete_from_grant_filter AS (
@@ -443,21 +426,20 @@ END $$;
 ---------------------------------------------------------------------------------------------------
 -- Final CTEs for dataset generation
 WITH active_filters_array AS (
-  SELECT array_remove(ARRAY[
-    CASE WHEN NULLIF(current_setting('ssdi.recipients', true), '') IS NOT NULL THEN 'recipients' END,
-    CASE WHEN NULLIF(current_setting('ssdi.programType', true), '') IS NOT NULL THEN 'programType' END,
-    CASE WHEN NULLIF(current_setting('ssdi.grantNumber', true), '') IS NOT NULL THEN 'grantNumber' END,
-    CASE WHEN NULLIF(current_setting('ssdi.stateCode', true), '') IS NOT NULL THEN 'stateCode' END,
-    CASE WHEN NULLIF(current_setting('ssdi.region', true), '') IS NOT NULL THEN 'region' END,
-    CASE WHEN NULLIF(current_setting('ssdi.startDate', true), '') IS NOT NULL THEN 'startDate' END,
-    CASE WHEN NULLIF(current_setting('ssdi.endDate', true), '') IS NOT NULL THEN 'endDate' END
-  ], NULL) AS active_filters
+    SELECT array_remove(ARRAY[
+      CASE WHEN NULLIF(current_setting('ssdi.recipients', true), '') IS NOT NULL THEN 'recipients' END,
+      CASE WHEN NULLIF(current_setting('ssdi.programType', true), '') IS NOT NULL THEN 'programType' END,
+      CASE WHEN NULLIF(current_setting('ssdi.grantNumber', true), '') IS NOT NULL THEN 'grantNumber' END,
+      CASE WHEN NULLIF(current_setting('ssdi.stateCode', true), '') IS NOT NULL THEN 'stateCode' END,
+      CASE WHEN NULLIF(current_setting('ssdi.region', true), '') IS NOT NULL THEN 'region' END,
+      CASE WHEN NULLIF(current_setting('ssdi.startDate', true), '') IS NOT NULL THEN 'startDate' END,
+      CASE WHEN NULLIF(current_setting('ssdi.endDate', true), '') IS NOT NULL THEN 'endDate' END
+    ], NULL) AS active_filters
 ),
 
 no_tta AS (
-    SELECT
-      r.id,
-      COUNT(DISTINCT a.id) != 0 OR COUNT(DISTINCT srp.id) != 0 AS has_tta
+    SELECT DISTINCT r.id, 
+        COUNT(DISTINCT a.id) != 0 OR COUNT(DISTINCT srp.id) != 0 AS has_tta
     FROM "Recipients" r
     JOIN "Grants" gr ON r.id = gr."recipientId"
     JOIN filtered_grants fgr ON gr.id = fgr.id
@@ -475,7 +457,6 @@ no_tta AS (
     AND (srp.data ->> 'endDate')::DATE > now() - INTERVAL '90 days'
     WHERE gr.status = 'Active'
     GROUP BY 1
-    ORDER BY 1
 ),
 no_tta_widget AS (
     SELECT
@@ -500,7 +481,6 @@ no_tta_page AS (
     AND a."calculatedStatus" = 'approved'
     WHERE gr.status = 'Active'
     GROUP BY 1,2,3
-    ORDER BY 1
 ),
 datasets AS (
     SELECT 'no_tta_widget' data_set, COUNT(*) records,
