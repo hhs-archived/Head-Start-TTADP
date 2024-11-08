@@ -81,6 +81,9 @@ main(){
         log "Errors occurred during script execution"
    	fi
 
+    # Merge coverage reports
+    node ./tools/merge-coverage.js
+
     exit "$exit_code"
 }
 

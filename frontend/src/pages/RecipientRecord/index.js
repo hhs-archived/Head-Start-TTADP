@@ -15,14 +15,13 @@ import GoalsObjectives from './pages/GoalsObjectives';
 import GoalForm from '../../components/GoalForm';
 import PrintGoals from './pages/PrintGoals';
 import FilterContext from '../../FilterContext';
-import { getIdParamArray, GOALS_OBJECTIVES_FILTER_KEY } from './pages/constants';
+import { GOALS_OBJECTIVES_FILTER_KEY } from './pages/constants';
 import MergeGoals from './pages/MergeGoals';
 import CommunicationLog from './pages/CommunicationLog';
 import CommunicationLogForm from './pages/CommunicationLogForm';
 import ViewCommunicationLog from './pages/ViewCommunicationLog';
 import { GrantDataProvider } from './pages/GrantDataContext';
 import ViewGoals from './pages/ViewGoals';
-import GoalNameForm from '../../components/GoalNameForm';
 
 export function PageWithHeading({
   children,
@@ -266,9 +265,11 @@ export default function RecipientRecord({ match, hasAlerts }) {
               <Helmet>
                 <title>Create a New Goal</title>
               </Helmet>
-              <GoalNameForm
+              <GoalForm
                 regionId={regionId}
                 recipient={recipientData}
+                showRTRnavigation
+                isNew
               />
             </>
           )}
@@ -283,33 +284,14 @@ export default function RecipientRecord({ match, hasAlerts }) {
           )}
         />
         <Route
-          path="/recipient-tta-records/:recipientId/region/:regionId/goals/edit"
-          render={({ location }) => {
-            const goalIds = getIdParamArray(location.search);
-
-            return (
-              <GoalForm
-                regionId={regionId}
-                recipient={recipientData}
-                goalIds={goalIds}
-              />
-            );
-          }}
-        />
-        <Route
           path="/recipient-tta-records/:recipientId/region/:regionId/goals"
-          render={({ location }) => {
-            const goalIds = getIdParamArray(location.search);
-
-            return (
-              <GoalNameForm
-                regionId={regionId}
-                recipient={recipientData}
-                ids={goalIds}
-                isExistingGoal
-              />
-            );
-          }}
+          render={() => (
+            <GoalForm
+              regionId={regionId}
+              recipient={recipientData}
+              showRTRnavigation
+            />
+          )}
         />
         <Route
           path="/recipient-tta-records/:recipientId/region/:regionId/communication/:communicationLogId([0-9]*)/view"

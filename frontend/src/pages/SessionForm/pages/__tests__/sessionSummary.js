@@ -243,7 +243,7 @@ describe('sessionSummary', () => {
       fetchMock.delete(deleteUrl, 200);
 
       const confirmDelete = await screen.findByRole('button', {
-        name: /confirm delete/i,
+        name: /This button will permanently delete the file/i,
       });
 
       act(() => {
@@ -335,7 +335,7 @@ describe('sessionSummary', () => {
       fetchMock.delete(deleteUrl, 500);
 
       const confirmDelete = await screen.findByRole('button', {
-        name: /confirm delete/i,
+        name: /This button will permanently delete the file/i,
       });
 
       act(() => {

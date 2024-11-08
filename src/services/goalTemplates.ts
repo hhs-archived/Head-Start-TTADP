@@ -67,7 +67,6 @@ export async function getCuratedTemplates(
     attributes: [
       'id',
       'source',
-      'isSourceEditable',
       ['templateName', 'label'],
       ['id', 'value'],
       ['templateName', 'name'],
@@ -126,28 +125,8 @@ export async function getCuratedTemplates(
         { regionId: null },
       ],
     },
-    order: [['templateName', 'ASC']],
+    ORDER: [['name', 'ASC']],
   });
-}
-
-export async function getSourceFromTemplate(
-  goalTemplateId: number,
-  grantIds: number[],
-) {
-  const goal = await GoalModel.findOne({
-    where: {
-      goalTemplateId,
-      grantId: grantIds,
-    },
-    attributes: ['source'],
-    include: {
-      model: GoalTemplateModel,
-      as: 'goalTemplate',
-      attributes: ['source'],
-    },
-  });
-
-  return goal?.source || goal?.goalTemplate?.source;
 }
 
 /**

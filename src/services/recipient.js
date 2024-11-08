@@ -321,7 +321,6 @@ export async function recipientsByName(query, scopes, sortBy, direction, offset,
     group: [
       'grants.regionId',
       'Recipient.id',
-      'Recipient.name',
     ],
     limit,
     offset,

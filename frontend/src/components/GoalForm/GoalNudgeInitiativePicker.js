@@ -1,70 +1,76 @@
 import React, {
+  useState,
   useEffect,
 } from 'react';
 import Select from 'react-select';
 import PropTypes from 'prop-types';
-import { Controller, useFormContext } from 'react-hook-form';
+import {
+  FormGroup,
+  Label,
+} from '@trussworks/react-uswds';
+import Req from '../Req';
 import selectOptionsReset from '../selectOptionsReset';
-import FormItem from '../FormItem';
 
 export default function GoalNudgeInitiativePicker({
-  goalTemplates,
-  initiativeRef,
+  error,
   useOhsInitiativeGoal,
+  validateGoalName,
+  goalTemplates,
+  onSelectNudgedGoal,
+  initiativeRef,
 }) {
-  const { control, setValue, watch } = useFormContext();
-  const { goalTemplate } = watch();
+  const [selection, setSelection] = useState('');
 
   useEffect(() => {
     // reset selection when useOhsInitiativeGoal is toggled
     // or if we don't have any valid goal templates
-    if (!useOhsInitiativeGoal && goalTemplate) {
-      // should clear out selection
-      setValue('goalTemplate', null);
+    if (!useOhsInitiativeGoal || !goalTemplates.length) {
+      setSelection('');
     }
-  }, [goalTemplate, goalTemplates, setValue, useOhsInitiativeGoal]);
+  }, [goalTemplates, useOhsInitiativeGoal]);
 
   if (!useOhsInitiativeGoal) {
     return null;
   }
 
-  const rules = useOhsInitiativeGoal ? { required: 'Select a goal' } : {};
-
   return (
-    <Controller
-      render={({ value, onChange, onBlur }) => (
-        <FormItem label="OHS initiative goal" name="goalTemplate" required>
-          <Select
-            aria-label="OHS initiative goal"
-            ref={initiativeRef}
-            inputId="goalTemplate"
-            name="goalTemplate"
-            className="usa-select"
-            styles={selectOptionsReset}
-            onChange={onChange}
-            options={goalTemplates || []}
-            placeholder="- Select -"
-            value={value}
-            getOptionLabel={(option) => option.name}
-            getOptionValue={(option) => option.id}
-            onBlur={onBlur}
-          />
-        </FormItem>
-      )}
-      name="goalTemplate"
-      control={control}
-      rules={rules}
-      defaultValue={null}
-    />
+    <FormGroup error={error.props.children}>
+      <Label htmlFor="goal-template">
+        Recipient&apos;s goal
+        {' '}
+        <Req />
+      </Label>
+      <Select
+        aria-label="OHS initiative goal"
+        ref={initiativeRef}
+        inputId="goal-template"
+        name="goal-template"
+        className="usa-select"
+        styles={selectOptionsReset}
+        onChange={(updatedSelection) => {
+          setSelection(updatedSelection);
+          onSelectNudgedGoal(updatedSelection);
+        }}
+        options={goalTemplates || []}
+        placeholder="- Select -"
+        value={selection}
+        getOptionLabel={(option) => option.name}
+        getOptionValue={(option) => option.id}
+        onBlur={() => validateGoalName()}
+      />
+    </FormGroup>
   );
 }
 
 GoalNudgeInitiativePicker.propTypes = {
+  error: PropTypes.node.isRequired,
+  validateGoalName: PropTypes.func.isRequired,
   goalTemplates: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.number.isRequired,
     name: PropTypes.string.isRequired,
   })).isRequired,
   useOhsInitiativeGoal: PropTypes.bool.isRequired,
+  onSelectNudgedGoal: PropTypes.func.isRequired,
   initiativeRef: PropTypes.shape({
     current: PropTypes.instanceOf(Element),
   }).isRequired,

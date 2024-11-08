@@ -25,7 +25,6 @@ import {
   GoalTemplateFieldPrompt,
   ActivityReportGoalFieldResponse,
   File,
-  Program,
 } from '../models';
 import {
   OBJECTIVE_STATUS,
@@ -125,29 +124,14 @@ export async function goalsByIdsAndActivityReport(id, activityReportId) {
       ['name', 'label'],
       'id',
       'name',
-      'isSourceEditable',
-      'onApprovedAR',
-      'source',
     ],
     where: {
       id,
     },
     include: [
       {
-        model: GoalTemplate,
-        as: 'goalTemplate',
-        attributes: [],
-      },
-      {
         model: Grant,
         as: 'grant',
-        include: [
-          {
-            model: Program,
-            as: 'programs',
-            attributes: [],
-          },
-        ],
       },
       {
         model: Objective,
@@ -280,9 +264,7 @@ export async function goalsByIdsAndActivityReport(id, activityReportId) {
 
   const reformattedGoals = goals.map((goal) => ({
     ...goal,
-    isSourceEditable: goal.isSourceEditable,
     isReopenedGoal: wasGoalPreviouslyClosed(goal),
-    onApprovedAR: goal.onApprovedAR,
     objectives: goal.objectives
       .map((objective) => ({
         ...objective.toJSON(),
@@ -525,7 +507,6 @@ export async function createOrUpdateGoals(goals) {
       isCurated,
       source,
       goalTemplateId,
-      skipObjectiveCleanup,
       ...options
     } = goalData;
 
@@ -568,7 +549,7 @@ export async function createOrUpdateGoals(goals) {
         ...(options && options.name && { name: options.name.trim() }),
       });
 
-      if (status && newGoal.status !== status) {
+      if (newGoal.status !== status) {
         newGoal.set({ status });
       }
     }
@@ -668,11 +649,7 @@ export async function createOrUpdateGoals(goals) {
     );
 
     // this function deletes unused objectives
-    // we can pass a flag to skip this if we are updating the goal without changing objectives
-    if (!skipObjectiveCleanup) {
-      await cleanupObjectivesForGoal(newGoal.id, newObjectives);
-    }
-
+    await cleanupObjectivesForGoal(newGoal.id, newObjectives);
     return newGoal.id;
   }));
 
@@ -706,13 +683,6 @@ export async function goalsForGrants(grantIds) {
       attributes: [],
     }],
     group: ['"Grant".id'],
-  });
-
-  const curatedTemplates = await GoalTemplate.findAll({
-    attributes: ['id'],
-    where: {
-      creationMethod: CREATION_METHOD.CURATED,
-    },
   });
 
   /**
@@ -771,15 +741,7 @@ export async function goalsForGrants(grantIds) {
       'source',
       'createdVia',
     ],
-    group: [
-      '"Goal"."name"',
-      '"Goal"."status"',
-      '"Goal"."endDate"',
-      '"Goal"."onApprovedAR"',
-      '"Goal"."source"',
-      '"Goal"."createdVia"',
-      '"Goal".id',
-    ],
+    group: ['"Goal"."name"', '"Goal"."status"', '"Goal"."endDate"', '"Goal"."onApprovedAR"', '"Goal"."source"', '"Goal"."createdVia"', '"Goal".id'],
     where: {
       name: {
         [Op.ne]: '', // exclude "blank" goals
@@ -787,16 +749,6 @@ export async function goalsForGrants(grantIds) {
       '$grant.id$': ids,
       status: {
         [Op.notIn]: ['Closed', 'Suspended'],
-      },
-      goalTemplateId: {
-        [Op.or]: [
-          {
-            [Op.notIn]: curatedTemplates.map((ct) => ct.id),
-          },
-          {
-            [Op.is]: null,
-          },
-        ],
       },
     },
     include: [
@@ -817,13 +769,7 @@ export async function goalsForGrants(grantIds) {
         required: false,
       },
     ],
-    order: [[sequelize.fn(
-      'MAX',
-      sequelize.fn(
-        'DISTINCT',
-        sequelize.col('"Goal"."createdAt"'),
-      ),
-    ), 'desc']],
+    order: [['name', 'asc']],
   });
 }
 
