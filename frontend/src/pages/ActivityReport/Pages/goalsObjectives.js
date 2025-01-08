@@ -119,6 +119,8 @@ const GoalsObjectives = ({
   const [fetchError, setFetchError] = useState(false);
   const [availableGoals, updateAvailableGoals] = useState([]);
   const [goalTemplates, setGoalTemplates] = useState([]);
+  const [warnedUserAboutMonitoringGoal, setWarnedUserAboutMonitoringGoal] = useState(false);
+  const [grantsWithoutMonitoring, setGrantsWithoutMonitoring] = useState([]);
 
   const {
     field: {
@@ -139,6 +141,37 @@ const GoalsObjectives = ({
     const fetchGoalTemplates = async () => {
       if (isRecipientReport && hasGrant) {
         try {
+          const testTemplates = [
+            {
+              isSourceEditable: true,
+              id: 24872,
+              source: null,
+              standard: 'Monitoring',
+              label: '(Monitoring) The recipient will develop and implement a QIP/CAP to address monitoring findings.',
+              value: 24872,
+              name: '(Monitoring) The recipient will develop and implement a QIP/CAP to address monitoring findings.',
+              goalTemplateId: 24872,
+              goalIds: [],
+              isRttapa: null,
+              status: 'Not Started',
+              endDate: null,
+              grantIds: [],
+              oldGrantIds: [],
+              isCurated: true,
+              isNew: false,
+              goals: [
+                {
+                  id: 93391,
+                  name: '(Monitoring) The recipient will develop and implement a QIP/CAP to address monitoring findings.',
+                  source: 'Federal monitoring issues, including CLASS and RANs',
+                  status: 'Not Started',
+                  grantId: 11591,
+                  goalTemplateId: 24872,
+                },
+              ],
+            },
+          ];
+          // const fetchedGoalTemplates = testTemplates;
           const fetchedGoalTemplates = await getGoalTemplates(grantIds);
 
           // format goalTemplates
@@ -353,6 +386,64 @@ const GoalsObjectives = ({
     }
     return null;
   };
+  console.log('warnedUserAboutMonitoringGoal', warnedUserAboutMonitoringGoal);
+  /*
+  console.log('goalsForReview', goalsForReview);
+  console.log('goalForEditing', goalForEditing);
+  console.log('isGoalFormClosed', isGoalFormClosed);
+  console.log('availableGoals', availableGoals);
+*/
+
+  useDeepCompareEffect(async () => {
+    const checkMonitoringGoal = async () => {
+      const totalGoalCount = selectedGoals.length + (goalForEditing ? 1 : 0);
+      let monitoringGoalBeingEdited = false;
+      let selectedMonitoringGoal = goalsForReview.find((goal) => goal.standard === 'Monitoring');
+      if (!selectedMonitoringGoal && goalForEditing && goalForEditing.standard === 'Monitoring') {
+        monitoringGoalBeingEdited = true;
+        selectedMonitoringGoal = goalForEditing;
+      }
+      console.log('selectedMonitoringGoal', selectedMonitoringGoal);
+      if (selectedMonitoringGoal && totalGoalCount === 1) {
+        const monitoringGoalTemplate = goalTemplates.find((goal) => goal.standard === 'Monitoring');
+        console.log('monitoringGoalTemplate', monitoringGoalTemplate);
+        if (monitoringGoalTemplate) {
+          const missingGrants = grantIds.filter(
+            (grantId) => !monitoringGoalTemplate.goals.some((g) => g.grantId === grantId),
+          );
+          console.log('missingGrants', missingGrants);
+          if (missingGrants.length > 0) {
+            const grantsIdsMissingMonitoringFullNames = activityRecipients
+              .filter((ar) => missingGrants.includes(ar.activityRecipientId))
+              .map((grant) => grant.name);
+            // If goal is being currently edited or we have warned them mark it as done.
+            setWarnedUserAboutMonitoringGoal(true);
+            setGrantsWithoutMonitoring(grantsIdsMissingMonitoringFullNames);
+            if (!monitoringGoalBeingEdited && !warnedUserAboutMonitoringGoal) {
+              console.log('set being edited>>');
+              onEdit(selectedMonitoringGoal);
+            }
+          } else {
+            console.log('set NO grants without goals');
+            setGrantsWithoutMonitoring([]);
+          }
+        }
+      } else if (grantsWithoutMonitoring.length > 0) {
+        setGrantsWithoutMonitoring([]);
+      }
+    };
+
+    if (goalTemplates && goalTemplates.length > 0) {
+      checkMonitoringGoal();
+    }
+    // debugger;
+  }, [goalForEditing,
+    grantIds,
+    selectedGoals,
+    activityRecipients,
+    goalTemplates,
+    goalsForReview,
+    warnedUserAboutMonitoringGoal]);
 
   return (
     <>
@@ -418,6 +509,7 @@ const GoalsObjectives = ({
                 availableGoals={availableGoals}
                 reportId={reportId}
                 goalTemplates={goalTemplates}
+                grantsWithoutMonitoring={grantsWithoutMonitoring}
               />
             </Fieldset>
           </>

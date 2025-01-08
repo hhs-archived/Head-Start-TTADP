@@ -50,6 +50,7 @@ const GoalPicker = ({
   grantIds,
   reportId,
   goalTemplates,
+  grantsWithoutMonitoring,
 }) => {
   const {
     control, setValue, watch,
@@ -64,7 +65,6 @@ const GoalPicker = ({
 
   const [citationOptions, setCitationOptions] = useState([]);
   const [rawCitations, setRawCitations] = useState([]);
-  const [grantsWithoutMonitoring, setGrantsWithoutMonitoring] = useState([]);
 
   const selectedGoals = useWatch({ name: 'goals' });
   const activityRecipients = watch('activityRecipients');
@@ -256,37 +256,6 @@ const GoalPicker = ({
     onChangeGoal(goal);
   };
 
-  useDeepCompareEffect(() => {
-    // We have only a single monitoring goal selected.
-    if (isMonitoringGoal && (!selectedGoals || selectedGoals.length === 0)) {
-      // Get the monitoring goal from the templates.
-      const monitoringGoal = goalTemplates.find((goal) => goal.standard === 'Monitoring');
-      if (monitoringGoal) {
-        // Find any grants that are missing from the monitoring goal.
-        const missingGrants = grantIds.filter(
-          (grantId) => !monitoringGoal.goals.find((g) => g.grantId === grantId),
-        );
-
-        if (missingGrants.length > 0) {
-        // get the names of the grants that are missing from goalForEditing.grants
-          const grantsIdsMissingMonitoringFullNames = activityRecipients.filter(
-            (ar) => missingGrants.includes(ar.activityRecipientId),
-          ).map((grant) => grant.name);
-          setGrantsWithoutMonitoring(grantsIdsMissingMonitoringFullNames);
-        } else {
-          setGrantsWithoutMonitoring([]);
-        }
-      }
-    } else if (grantsWithoutMonitoring.length > 0) {
-      setGrantsWithoutMonitoring([]);
-    }
-  }, [goalForEditing,
-    grantIds,
-    selectedGoals,
-    activityRecipients,
-    isMonitoringGoal,
-    goalTemplates]);
-
   const pickerOptions = useOhsStandardGoal ? goalTemplates : options;
 
   return (
@@ -308,7 +277,7 @@ const GoalPicker = ({
       </Modal>
       <div className="margin-top-3 position-relative">
         {
-          grantsWithoutMonitoring.length > 0 && (
+          grantsWithoutMonitoring.length > 0 && isMonitoringGoal && (
             <Alert type="warning" className="margin-bottom-2">
               <span>
                 <span className="margin-top-0">
@@ -414,6 +383,7 @@ GoalPicker.propTypes = {
     PropTypes.number,
     PropTypes.string,
   ]).isRequired,
+  grantsWithoutMonitoring: PropTypes.arrayOf(PropTypes.string).isRequired,
 };
 
 export default GoalPicker;

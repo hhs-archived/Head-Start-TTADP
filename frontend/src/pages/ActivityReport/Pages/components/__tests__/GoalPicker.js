@@ -39,6 +39,7 @@ const GP = ({
   goalForEditing,
   goalTemplates,
   additionalRecipients = [],
+  grantsWithoutMonitoring = [],
 }) => {
   const hookForm = useForm({
     mode: 'onChange',
@@ -75,6 +76,7 @@ const GP = ({
               goalTemplates={goalTemplates}
               grantIds={[1]}
               reportId={1}
+              grantsWithoutMonitoring={grantsWithoutMonitoring}
             />
           </Router>
         </FormProvider>
@@ -88,6 +90,7 @@ const renderGoalPicker = (
   selectedGoals = defaultSelectedGoals,
   goalForEditing = defaultGoalForEditing,
   goalTemplates = [],
+  grantsWithoutMonitoring = [],
 ) => {
   render(
     <GP
@@ -95,6 +98,7 @@ const renderGoalPicker = (
       selectedGoals={selectedGoals}
       goalForEditing={goalForEditing}
       goalTemplates={goalTemplates}
+      grantsWithoutMonitoring={grantsWithoutMonitoring}
     />,
   );
 };
@@ -516,7 +520,7 @@ describe('GoalPicker', () => {
         goalIds: [],
       };
       act(() => {
-        renderGoalPicker(availableGoals, null, goalForEditing, availableTemplates, [{ activityRecipientId: 2, name: 'Grant 2 Name' }]);
+        renderGoalPicker(availableGoals, null, goalForEditing, availableTemplates, ['grant 1 name']);
       });
       let selector = screen.queryByLabelText(/Select recipient's goal*/i);
       expect(selector).toBeVisible();
@@ -650,7 +654,12 @@ describe('GoalPicker', () => {
         goalIds: [],
       };
       act(() => {
-        renderGoalPicker(availableGoals, [{ id: 1, grantId: 1 }], goalForEditing, availableTemplates, [{ activityRecipientId: 2, name: 'Grant 2 Name' }]);
+        renderGoalPicker(
+          availableGoals,
+          [{ id: 1, grantId: 1 }],
+          goalForEditing,
+          availableTemplates,
+        );
       });
       let selector = screen.queryByLabelText(/Select recipient's goal*/i);
       expect(selector).toBeVisible();
