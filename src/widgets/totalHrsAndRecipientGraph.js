@@ -1,46 +1,29 @@
 import { Op } from 'sequelize';
 import moment from 'moment';
 import { REPORT_STATUSES, TOTAL_HOURS_AND_RECIPIENT_GRAPH_TRACE_IDS } from '@ttahub/common';
-import { ActivityReport } from '../models';
+import { sequelize, ActivityReport } from '../models';
 
-function addOrUpdateResponse(traceIndex, res, xValue, valueToAdd, month) {
-  // If report is missing duration set value to 0.
-  let cleanValue = valueToAdd;
-  if (cleanValue === null) {
-    cleanValue = 0;
+function addOrUpdateResponse(res, ttaTypeKey, xValue, duration, month) {
+  const domain = res[ttaTypeKey];
+
+  if (!domain) {
+    return;
   }
 
-  const valueToUse = parseFloat(cleanValue, 10) === 0 ? 0 : parseFloat(cleanValue, 10);
-
-  res?.forEach((responseObject, index) => {
-    if (index === traceIndex) {
-      if (responseObject.x.includes(xValue)) {
-        // Update existing x value.
-        const indexToUpdate = res[traceIndex].x.indexOf(xValue);
-        // eslint-disable-next-line no-param-reassign
-        responseObject.y[indexToUpdate] += valueToUse;
-      } else {
-        // Add X value, month value, & Y value.
-        responseObject.x.push(xValue);
-        responseObject.y.push(valueToUse);
-        responseObject.month.push(month);
-      }
-    } else {
-      // Add X axis entry with 0 value.
-      if (responseObject.x.includes(xValue)) {
-        return;
-      }
-      responseObject.x.push(xValue);
-      responseObject.y.push(0);
-      responseObject.month.push(month);
-    }
-  });
+  const keyIndex = domain.x.findIndex((x) => x === xValue);
+  if (keyIndex === -1) {
+    domain.x.push(xValue);
+    domain.y.push(parseFloat(duration));
+    domain.month.push(month);
+  } else {
+    domain.y[keyIndex] += parseFloat(duration);
+  }
 }
 
 export default async function totalHrsAndRecipientGraph(scopes, query) {
   // Build out return Graph data.
-  const res = [
-    {
+  const res = {
+    'technical-assistance': {
       name: 'Hours of Technical Assistance',
       x: [],
       y: [],
@@ -48,7 +31,7 @@ export default async function totalHrsAndRecipientGraph(scopes, query) {
       id: TOTAL_HOURS_AND_RECIPIENT_GRAPH_TRACE_IDS.TECHNICAL_ASSISTANCE,
       trace: 'circle',
     },
-    {
+    'training,technical-assistance': {
       name: 'Hours of Both',
       x: [],
       y: [],
@@ -56,7 +39,7 @@ export default async function totalHrsAndRecipientGraph(scopes, query) {
       id: TOTAL_HOURS_AND_RECIPIENT_GRAPH_TRACE_IDS.BOTH,
       trace: 'triangle',
     },
-    {
+    training: {
       name: 'Hours of Training',
       x: [],
       y: [],
@@ -64,8 +47,7 @@ export default async function totalHrsAndRecipientGraph(scopes, query) {
       id: TOTAL_HOURS_AND_RECIPIENT_GRAPH_TRACE_IDS.TRAINING,
       trace: 'square',
     },
-  ];
-
+  };
   // Get the Date Range.
   const dateRange = query['startDate.win'];
 
@@ -109,55 +91,38 @@ export default async function totalHrsAndRecipientGraph(scopes, query) {
   // Query Approved AR's.
   const reports = await ActivityReport.findAll({
     attributes: [
-      'id',
       'startDate',
       'ttaType',
-      'duration',
+      [sequelize.fn('sum', sequelize.col('duration')), 'duration'],
     ],
     where: {
       [Op.and]: [scopes.activityReport],
       calculatedStatus: REPORT_STATUSES.APPROVED,
-
+      startDate: {
+        [Op.not]: null,
+      },
     },
-    raw: true,
+    group: ['ttaType', 'startDate'],
     includeIgnoreAttributes: false,
     order: [['startDate', 'ASC']],
   });
 
-  const arDates = [];
-
-  reports?.forEach((r) => {
-    if (r.startDate && r.startDate !== null) {
-      // Get X Axis value to use.
-      let xValue;
-      if (useDays) {
-        xValue = moment(r.startDate).format('MMM-DD');
-      } else if (multipleYrs) {
-        xValue = moment(r.startDate).format('MMM-YY');
-      } else {
-        xValue = moment(r.startDate).format('MMM');
-      }
-
-      const month = useDays ? moment(r.startDate).format('MMM') : false;
-
-      // Check if we have added this activity report for this date.
-      if (!arDates.find((cache) => cache.id === r.id && cache.date === r.startDate)) {
-        // Populate Both.
-        if ((r.ttaType.includes('training') && r.ttaType.includes('technical-assistance')) || r.ttaType.includes('Both')) {
-          addOrUpdateResponse(2, res, xValue, r.duration, month);
-        } else if (r.ttaType.includes('training') || r.ttaType.includes('Training')) {
-          // Hours of Training.
-          addOrUpdateResponse(0, res, xValue, r.duration, month);
-        } else {
-          // Hours of Technical Assistance.
-          addOrUpdateResponse(1, res, xValue, r.duration, month);
-        }
-
-        // Populate used AR Id's and Dates.
-        arDates.push({ id: r.id, date: r.startDate });
-      }
+  reports.forEach((r) => {
+    let xValue;
+    const sd = moment(r.startDate, 'MM/DD/YYYY');
+    if (useDays) {
+      xValue = sd.format('MMM-DD');
+    } else if (multipleYrs) {
+      xValue = sd.format('MMM-YY');
+    } else {
+      xValue = sd.format('MMM');
     }
+
+    const month = useDays ? sd.format('MMM') : false;
+
+    const ttaTypeKey = r.ttaType.join(',');
+    addOrUpdateResponse(res, ttaTypeKey, xValue, r.duration, month);
   });
 
-  return res;
+  return Object.values(res);
 }
