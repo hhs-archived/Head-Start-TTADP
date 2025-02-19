@@ -9,7 +9,7 @@ Welcome to the home of the OHS TTAHUB.
 <tr>
 <td>
 
-[![HHS](https://circleci.com/gh/HHS/Head-Start-TTADP.svg?style=shield)](https://app.circleci.com/pipelines/github/HHS/Head-Start-TTADP)
+[![HHS](https://dl.circleci.com/status-badge/img/gh/HHS/Head-Start-TTADP/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/HHS/Head-Start-TTADP/tree/main)
 
 </td>
 </tr>
@@ -289,7 +289,8 @@ variable files.
 
 Commits to specific branches in github repositories start automatic deployments as follows:
 
-- **Dev** deployed by latest push to any remote branch of HHS/Head-Start-TTADP repo
+- **Sandbox** deployed by updating `sandbox_git_branch` in [.circleci/config.yml](.circleci/config.yml)
+- **Dev** deployed by by updating `dev_git_branch` in [.circleci/config.yml](.circleci/config.yml)
 - **Staging** deployed by commit to [main branch][hhs-main] of HHS/Head-Start-TTADP repo
 - **Prod** deployed by commit to [production branch][hhs-prod] of HHS/Head-Start-TTADP repo
 
