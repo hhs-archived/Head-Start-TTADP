@@ -1,7 +1,9 @@
-import React, { useContext } from 'react';
+import React, { useContext, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
+import moment from 'moment';
 import { COMMUNICATION_METHODS, COMMUNICATION_PURPOSES, COMMUNICATION_RESULTS } from '@ttahub/common';
 import {
+  Alert,
   Button,
   TextInput,
   Label,
@@ -9,22 +11,25 @@ import {
   Textarea,
 } from '@trussworks/react-uswds';
 import { useFormContext } from 'react-hook-form';
-import IndicatesRequiredField from '../../../../../components/IndicatesRequiredField';
-import FormItem from '../../../../../components/FormItem';
-import ControlledDatePicker from '../../../../../components/ControlledDatePicker';
-import {
-  pageComplete,
-  defaultLogValues,
-} from '../constants';
-import ReadOnlyField from '../../../../../components/ReadOnlyField';
-import UserContext from '../../../../../UserContext';
-import { mustBeQuarterHalfOrWhole, NOOP } from '../../../../../Constants';
-import MultiSelect from '../../../../../components/MultiSelect';
-import LogContext from '../LogContext';
+import Drawer from '../../Drawer';
+import ContentFromFeedByTag from '../../ContentFromFeedByTag';
+import IndicatesRequiredField from '../../IndicatesRequiredField';
+import FormItem from '../../FormItem';
+import ControlledDatePicker from '../../ControlledDatePicker';
+import { pageComplete, defaultLogValues } from '../constants';
+import ReadOnlyField from '../../ReadOnlyField';
+import UserContext from '../../../UserContext';
+import { mustBeQuarterHalfOrWhole, NOOP } from '../../../Constants';
+import MultiSelect from '../../MultiSelect';
+import { useLogContext } from '../components/LogContext';
+import CommunicationRecipients from '../components/CommunicationRecipients';
 
 const fields = Object.keys(defaultLogValues);
 
-const Log = ({ datePickerKey }) => {
+const Log = ({
+  datePickerKey,
+  multiGrant,
+}) => {
   const {
     register,
     watch,
@@ -32,16 +37,26 @@ const Log = ({ datePickerKey }) => {
   } = useFormContext();
 
   const { user } = useContext(UserContext);
-  const { regionalUsers, standardGoals } = useContext(LogContext);
+  const { regionalUsers, standardGoals } = useLogContext();
+  const purposeDrawerRef = useRef(null);
+  const resultDrawerRef = useRef(null);
   const communicationDate = watch('communicationDate');
   const authorName = watch('author.name');
+  const isEditing = watch('isEditing');
 
   const otherStaffOptions = regionalUsers.map((u) => ({ ...u, value: String(u.value) }));
   const standardGoalsOptions = standardGoals.map((g) => ({ ...g, value: String(g.value) }));
+  const today = useMemo(() => moment().format('MM/DD/YYYY'), []);
 
   return (
     <>
       <IndicatesRequiredField />
+      {(isEditing && multiGrant) && (
+        <Alert type="info">
+          All of the recipients on this Communication log will receive
+          the same updates once edits are saved.
+        </Alert>
+      )}
       <input type="hidden" name="author.name" ref={register()} />
       <div className="margin-top-2">
         <ReadOnlyField label="Creator name">
@@ -70,6 +85,10 @@ const Log = ({ datePickerKey }) => {
         </FormItem>
       </div>
 
+      {multiGrant && (
+        <CommunicationRecipients />
+      )}
+
       <div className="margin-top-2">
         <FormItem
           label="Date of communication"
@@ -89,6 +108,7 @@ const Log = ({ datePickerKey }) => {
             name="communicationDate"
             value={communicationDate}
             inputId="communicationDate"
+            maxDate={today}
           />
         </FormItem>
       </div>
@@ -140,7 +160,19 @@ const Log = ({ datePickerKey }) => {
       </div>
       <div className="margin-top-2">
         <FormItem
-          label="Purpose of communication "
+          label={(
+            <>
+              Purpose of communication
+              {' '}
+              <button
+                type="button"
+                className="usa-button usa-button--unstyled margin-left-1"
+                ref={purposeDrawerRef}
+              >
+                Get help choosing a purpose
+              </button>
+            </>
+          )}
           name="purpose"
         >
           <Dropdown
@@ -184,14 +216,26 @@ const Log = ({ datePickerKey }) => {
       </div>
       <div className="margin-top-2">
         <FormItem
-          label="Result"
+          label={(
+            <>
+              Result
+              {' '}
+              <button
+                type="button"
+                className="usa-button usa-button--unstyled margin-left-1"
+                ref={resultDrawerRef}
+              >
+                Get help choosing a result
+              </button>
+            </>
+          )}
           name="result"
-          required={false}
+          required
         >
           <Dropdown
             id="result"
             name="result"
-            inputRef={register()}
+            inputRef={register({ required: 'Select a result' })}
             defaultValue=""
           >
             <option value="" disabled hidden>Select one</option>
@@ -201,12 +245,35 @@ const Log = ({ datePickerKey }) => {
           </Dropdown>
         </FormItem>
       </div>
+
+      <Drawer
+        triggerRef={purposeDrawerRef}
+        stickyHeader
+        stickyFooter
+        title="Purpose of communication"
+      >
+        <ContentFromFeedByTag tagName="ttahub-commlog-purpose" />
+      </Drawer>
+
+      <Drawer
+        triggerRef={resultDrawerRef}
+        stickyHeader
+        stickyFooter
+        title="Result guidance"
+      >
+        <ContentFromFeedByTag tagName="ttahub-commlog-results" />
+      </Drawer>
     </>
   );
 };
 
 Log.propTypes = {
   datePickerKey: PropTypes.string.isRequired,
+  multiGrant: PropTypes.bool,
+};
+
+Log.defaultProps = {
+  multiGrant: false,
 };
 
 const path = 'log';
@@ -214,12 +281,13 @@ const position = 1;
 
 export const isPageComplete = (hookForm) => pageComplete(hookForm, fields);
 
-export default {
+const createLogPage = (multiGrantLog = false) => ({
   position,
   label: 'Communication log',
   path,
   review: false,
   fields,
+  isPageComplete,
   render: (
     _additionalData,
     _formData,
@@ -231,15 +299,19 @@ export default {
     _weAreAutoSaving,
     datePickerKey,
     _onFormSubmit,
-    Alert,
+    BAlert,
   ) => (
     <div className="padding-x-1">
-      <Log datePickerKey={datePickerKey} />
-      <Alert />
+      <Log datePickerKey={datePickerKey} multiGrant={multiGrantLog} />
+      <BAlert />
       <div className="display-flex">
         <Button id={`${path}-save-continue`} className="margin-right-1" type="button" disabled={isAppLoading} onClick={onContinue}>Save and continue</Button>
       </div>
     </div>
   ),
-  isPageComplete,
-};
+});
+
+const log = createLogPage();
+export const multiGrantLog = createLogPage(true);
+
+export default log;
