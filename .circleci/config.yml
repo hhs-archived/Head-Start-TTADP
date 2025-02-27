@@ -91,6 +91,30 @@ commands:
       - run:
           name: Combine requirements.txt files to single file
           command: cat similarity_api/src/requirements.txt > << parameters.filename >>
+  setup_db:
+    description: "Setup database and backend server for testing"
+    steps:
+      - run:
+          name: Start backend server
+          command: |
+            yarn build
+            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
+          background: true
+      - run:
+          name: Run migrations ci
+          command: yarn db:migrate:ci
+      - run:
+          name: Seed database
+          command: yarn db:seed:ci
+      - run:
+            name: Wait for server to start
+            command: ./bin/ping-server 3000
+      - run:
+            name: Monitor database
+            command: |
+              docker attach  $(docker ps | grep postgres | awk '{print $1}')
+            background: true
+
   notify_new_relic:
     description: "Notify new relic of a deploy"
     parameters:
@@ -851,6 +875,7 @@ parameters:
 jobs:
   build_and_lint:
     executor: docker-executor
+    resource_class: large
     steps:
       - checkout
       - create_combined_yarnlock
@@ -900,10 +925,10 @@ jobs:
           root: .
           paths:
             - .
-    # The resource_class feature allows configuring CPU and RAM resources for each job. Different resource classes are available for different executors. https://circleci.com/docs/2.0/configuration-reference/#resourceclass
-    resource_class: large
+    
   build_and_lint_similarity_api:
     executor: docker-python-executor
+    resource_class: large
     steps:
       - checkout
       - create_combined_pipfreeze
@@ -938,9 +963,10 @@ jobs:
           root: .
           paths:
             - similarity_api
-    resource_class: large
+    
   test_backend:
     executor: docker-postgres-executor
+    resource_class: large
     environment:
       SFTP_EXPOSED_PORT: 2222
     steps:
@@ -948,6 +974,7 @@ jobs:
           at: .
       - setup_remote_docker:
           version: default
+      - setup_db
       - run:
           name: Monitor database
           command: |
@@ -993,9 +1020,10 @@ jobs:
       - store_artifacts:
           path: coverage-artifacts/
           destination: uncovered-lines
-    resource_class: large
+    
   test_similarity_api:
     executor: docker-python-executor
+    resource_class: large
     steps:
       - attach_workspace:
           at: .
@@ -1037,9 +1065,10 @@ jobs:
             coverage html -d ~/project/coverage/similarity --skip-covered
       - store_artifacts:
           path: reports/
-    resource_class: large
+    
   test_frontend:
     executor: docker-executor
+    resource_class: large
     steps:
       - attach_workspace:
           at: .
@@ -1079,112 +1108,36 @@ jobs:
       - store_artifacts:
           path: frontend/coverage-artifacts/
           destination: uncovered-lines
-    resource_class: large
-  test_e2e_frontend:
+
+  test_e2e:
     executor: docker-postgres-executor
+    resource_class: large
     steps:
       - attach_workspace:
           at: .
       - setup_remote_docker:
           version: default
-      - run:
-          name: Start server
-          command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
-          background: true
-      - run:
-          name: Run migrations ci
-          command: yarn db:migrate:ci
-      - run:
-          name: Seed database
-          command: yarn db:seed:ci
-      - run:
-          name: Wait for server to start
-          command: ./bin/ping-server 3000
-      - run:
-          name: Monitor database
-          command: |
-            docker attach  $(docker ps | grep postgres | awk '{print $1}')
-          background: true
+      - setup_db
       - run:
           name: Install playwright dependencies
           command: |
             npx playwright install
       - run:
-          name: Monitor database
-          command: |
-            docker attach  $(docker ps | grep postgres | awk '{print $1}')
-          background: true
-      - run:
-          name: Run playwright tests
-          command: yarn e2e:ci
-      - store_artifacts:
-          path: tests/e2e
-    resource_class: large
-  test_e2e_api:
-    executor: docker-postgres-executor
-    steps:
-      - attach_workspace:
-          at: .
-      - setup_remote_docker:
-          version: default
-      - run:
-          name: Start server
-          command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
-          background: true
-      - run:
-          name: Wait for server to start
-          command: ./bin/ping-server 3000
-      - run:
-          name: Monitor database
-          command: |
-            docker attach  $(docker ps | grep postgres | awk '{print $1}')
-          background: true
-      - run:
-          name: Install playwright dependencies
-          command: |
-            npx playwright install
-      - run:
-          name: Run playwright tests
-          command: yarn e2e:api
-      - store_artifacts:
-          path: tests/api
-    resource_class: large
-  test_utils:
-    executor: docker-postgres-executor
-    steps:
-      - attach_workspace:
-          at: .
-      - setup_remote_docker:
-          version: default
-      - run:
-          name: Start server
-          command: |
-            yarn build
-            BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
-          background: true
-      - run:
-          name: Run migrations ci
-          command: yarn db:migrate:ci
-      - run:
-          name: Seed database
-          command: yarn db:seed:ci
-      - run:
-          name: Wait for server to start
-          command: ./bin/ping-server 3000
-      - run:
-          name: Install playwright dependencies
-          command: |
-            npx playwright install
-      - run:
-          name: Run playwright tests
+          name: Run playwright e2e utils
           command: yarn e2e:utils
       - store_artifacts:
           path: tests/utilsTests
-    resource_class: large
+      - run:
+          name: Run playwright e2e tests
+          command: yarn e2e:ci
+      - store_artifacts:
+          path: tests/e2e
+      - run:
+          name: Run playwright API tests
+          command: yarn e2e:api
+      - store_artifacts:
+          path: tests/api
+
   cucumber_test:
     executor: docker-postgres-executor
     steps:
@@ -1196,6 +1149,7 @@ jobs:
             yarn build
             BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
           background: true
+      - setup_db
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -1755,12 +1709,9 @@ workflows:
         - equal: [false, << pipeline.parameters.manual-retention-production >>]
         - equal: [false, << pipeline.parameters.manual-retention-processed >>]
     jobs:
+      # FE/BE
       - build_and_lint
-      - build_and_lint_similarity_api
       - dynamic_security_scan:
-          requires:
-            - build_and_lint
-      - test_utils:
           requires:
             - build_and_lint
       - test_frontend:
@@ -1768,33 +1719,30 @@ workflows:
             - build_and_lint
       - test_backend:
           requires:
-            - test_utils
+            - build_and_lint
       - cucumber_test:
           requires:
-            - test_utils
-      - test_e2e_frontend:
+            - build_and_lint
+      - test_e2e:
           requires:
            - test_backend
            - test_frontend
+      # similarity API
+      - build_and_lint_similarity_api
       - test_similarity_api:
           requires:
             - build_and_lint_similarity_api
-      - test_e2e_api:
-          requires:
-            - test_utils
-            - test_similarity_api
+      # deploy
       - backup_upload_production:
           requires:
-            - test_e2e_frontend
-            - test_e2e_api
+            - build_and_lint
           filters:
             branches:
               only:
                 - << pipeline.parameters.prod_git_branch >>
       - deploy:
           requires:
-            - test_e2e_frontend
-            - test_e2e_api
+            - test_e2e
             - dynamic_security_scan
             - backup_upload_production
           filters:
@@ -1823,18 +1771,12 @@ workflows:
       - test_frontend:
           requires:
             - build_and_lint
-      - test_e2e_frontend:
-          requires:
-            - build_and_lint
-      - test_e2e_api:
+      - test_e2e:
           requires:
             - build_and_lint
       - test_similarity_api:
           requires:
             - build_and_lint_similarity_api
-      - test_utils:
-          requires:
-            - build_and_lint
       - dynamic_security_scan:
           requires:
             - build_and_lint

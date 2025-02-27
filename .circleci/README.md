@@ -27,7 +27,7 @@ This CircleCI configuration is designed to automate various tasks such as buildi
 
 ## Executors
 
-CircleCI executors define the environment in which each job runs. 
+CircleCI executors define the environment in which each job runs. The resource_class feature allows configuring CPU and RAM resources for each job, and different resource classes are available for different executors. https://circleci.com/docs/2.0/configuration-reference/#resourceclass
 
 - **Docker Executor**: Used for most tasks, leveraging a Node.js image with browser support for building and testing.
 - **Docker Postgres Executor**: Combines Node.js with a PostgreSQL instance for database-related testing.
@@ -85,6 +85,7 @@ This workflow automates the building, testing, and deployment process for the ap
 These workflows are triggered at regular intervals using cron schedules:
 
 1. **Daily Security Scan**:
+
    - Runs a comprehensive set of tests and OWASP ZAP scans to detect vulnerabilities.
    - Scheduled at 12:00 UTC, Monday to Friday.
 
@@ -99,15 +100,19 @@ These workflows are triggered at regular intervals using cron schedules:
 The configuration supports several workflows that can be manually triggered using flag variables:
 
 1. **Manual Backup Upload Production** (`manual-trigger`):
+
    - Backs up the production database and uploads it to a secure location.
 
 2. **Manual Restore Production** (`manual-restore`):
+
    - Restores the production database to a processing environment.
 
 3. **Manual Process Production** (`manual-process`):
+
    - Processes data in the production environment, typically for anonymization or cleanup.
 
 4. **Manual Process Backup** (`manual-backup`):
+
    - Processes and uploads a backup for distribution to other environments.
 
 5. **Manual Restore to Staging, Sandbox, or Dev** (`manual-restore-staging`, `manual-restore-sandbox`, `manual-restore-dev`):
