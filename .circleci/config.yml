@@ -783,7 +783,7 @@ parameters:
     type: string
   dev_git_branch: # change to feature branch to test deployment
     description: "Name of github branch that will deploy to dev"
-    default: "main"
+    default: "test-reorg"
     type: string
   sandbox_git_branch: # change to feature branch to test deployment
     default: "mb/TTAHUB-3937/communication-log-upload-bug"
@@ -949,15 +949,6 @@ jobs:
       - setup_remote_docker:
           version: default
       - run:
-          name: Add GitHub to known_hosts
-          command: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-      - run:
-          name: Run migrations ci
-          command: yarn db:migrate:ci
-      - run:
-          name: Run seeders
-          command: yarn db:seed:ci
-      - run:
           name: Monitor database
           command: |
             docker attach  $(docker ps | grep postgres | awk '{print $1}')
@@ -1089,7 +1080,7 @@ jobs:
           path: frontend/coverage-artifacts/
           destination: uncovered-lines
     resource_class: large
-  test_e2e:
+  test_e2e_frontend:
     executor: docker-postgres-executor
     steps:
       - attach_workspace:
@@ -1131,7 +1122,7 @@ jobs:
       - store_artifacts:
           path: tests/e2e
     resource_class: large
-  test_api:
+  test_e2e_api:
     executor: docker-postgres-executor
     steps:
       - attach_workspace:
@@ -1144,12 +1135,6 @@ jobs:
             yarn build
             BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
           background: true
-      - run:
-          name: Run migrations ci
-          command: yarn db:migrate:ci
-      - run:
-          name: Seed database
-          command: yarn db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -1211,12 +1196,6 @@ jobs:
             yarn build
             BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
           background: true
-      - run:
-          name: Run migrations ci
-          command: yarn db:migrate:ci
-      - run:
-          name: Seed database
-          command: yarn db:seed:ci
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
@@ -1778,55 +1757,43 @@ workflows:
     jobs:
       - build_and_lint
       - build_and_lint_similarity_api
-      - test_backend:
+      - dynamic_security_scan
+      - test_utils:
           requires:
             - build_and_lint
       - test_frontend:
           requires:
             - build_and_lint
-      - test_e2e:
+      - test_backend:
           requires:
-            - build_and_lint
-      - test_api:
+            - test_utils
+      - cucumber_test:
           requires:
-            - build_and_lint
+            - test_utils
+      - test_e2e_frontend:
+          requires:
+           - test_backend
+           - test_frontend
       - test_similarity_api:
           requires:
             - build_and_lint_similarity_api
-      - test_utils:
+      - test_e2e_api:
           requires:
-            - build_and_lint
-      - cucumber_test:
-          requires:
-            - build_and_lint
-      - dynamic_security_scan:
-          requires:
-            - build_and_lint
-            - build_and_lint_similarity_api
+            - test_similarity_api
       - backup_upload_production:
           requires:
-            - test_backend
-            - test_frontend
-            - test_e2e
-            - test_api
-            - test_similarity_api
-            - test_utils
-            - cucumber_test
-            - dynamic_security_scan
+            - test_e2e_frontend
+            - test_e2e_api
           filters:
             branches:
               only:
                 - << pipeline.parameters.prod_git_branch >>
       - deploy:
           requires:
-            - test_backend
-            - test_frontend
-            - test_e2e
-            - test_api
-            - test_similarity_api
-            - test_utils
-            - cucumber_test
+            - test_e2e_frontend
+            - test_e2e_api
             - dynamic_security_scan
+            - backup_upload_production
           filters:
             branches:
               only:
@@ -1853,10 +1820,10 @@ workflows:
       - test_frontend:
           requires:
             - build_and_lint
-      - test_e2e:
+      - test_e2e_frontend:
           requires:
             - build_and_lint
-      - test_api:
+      - test_e2e_api:
           requires:
             - build_and_lint
       - test_similarity_api:
