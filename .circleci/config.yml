@@ -1723,10 +1723,13 @@ workflows:
       - cucumber_test:
           requires:
             - build_and_lint
+      # E2E
       - test_e2e:
           requires:
-           - test_backend
            - test_frontend
+           - test_backend
+           - cucumber_test
+           - test_similarity_api
       # similarity API
       - build_and_lint_similarity_api
       - test_similarity_api:
@@ -1734,8 +1737,6 @@ workflows:
             - build_and_lint_similarity_api
       # deploy
       - backup_upload_production:
-          requires:
-            - build_and_lint
           filters:
             branches:
               only:
