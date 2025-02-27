@@ -1757,7 +1757,7 @@ workflows:
     jobs:
       - build_and_lint
       - build_and_lint_similarity_api
-      - dynamic_security_scan
+      - dynamic_security_scan:
           requires:
             - build_and_lint
       - test_utils:
