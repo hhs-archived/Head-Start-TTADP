@@ -918,9 +918,6 @@ jobs:
           path: reports
       - store_artifacts: # store frontend lint reports
           path: frontend/reports
-      - run:
-          name: Remove similarity api data
-          command: rm -rf similarity_api
       - persist_to_workspace:
           root: .
           paths:
@@ -938,6 +935,9 @@ jobs:
             - v2-pip-deps-{{ checksum "combined-requirements.txt" }}
             # If checksum is new, restore partial cache
             - v2-pip-deps-
+      - run:
+          name: Remove similarity api data
+          command: rm -rf similarity_api
       - run:
           name: Install python dependencies
           command: |
@@ -1711,9 +1711,7 @@ workflows:
     jobs:
       # FE/BE
       - build_and_lint
-      - dynamic_security_scan:
-          requires:
-            - build_and_lint
+      - build_and_lint_similarity_api
       - test_frontend:
           requires:
             - build_and_lint
@@ -1723,18 +1721,21 @@ workflows:
       - cucumber_test:
           requires:
             - build_and_lint
+      - test_similarity_api:
+          requires:
+            - build_and_lint_similarity_api
+      - dynamic_security_scan:
+          requires:
+            - build_and_lint
+            - build_and_lint_similarity_api
       # E2E
       - test_e2e:
           requires:
            - test_frontend
            - test_backend
            - cucumber_test
-           - test_similarity_api
-      # similarity API
-      - build_and_lint_similarity_api
-      - test_similarity_api:
-          requires:
-            - build_and_lint_similarity_api
+           - test_similarity_api      
+      
       # deploy
       - backup_upload_production:
           filters:
