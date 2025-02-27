@@ -1758,6 +1758,8 @@ workflows:
       - build_and_lint
       - build_and_lint_similarity_api
       - dynamic_security_scan
+          requires:
+            - build_and_lint
       - test_utils:
           requires:
             - build_and_lint
@@ -1779,6 +1781,7 @@ workflows:
             - build_and_lint_similarity_api
       - test_e2e_api:
           requires:
+            - test_utils
             - test_similarity_api
       - backup_upload_production:
           requires:
