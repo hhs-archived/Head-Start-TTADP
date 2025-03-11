@@ -1161,6 +1161,7 @@ jobs:
           path: reports/
     resource_class: large
   dynamic_security_scan:
+    resource_class: large
     executor: machine-executor
     steps:
       - attach_workspace:
@@ -1190,8 +1191,6 @@ jobs:
           command: ./bin/run-owasp-scan --target http://similarity_api:8080 --api
       - store_artifacts:
           path: reports
-          when: always
-    resource_class: large
   deploy:
     executor: docker-executor
     steps:
@@ -1715,10 +1714,8 @@ workflows:
       - test_frontend:
           requires:
             - build_and_lint
+            - test_backend
       - test_backend:
-          requires:
-            - build_and_lint
-      - cucumber_test:
           requires:
             - build_and_lint
       - test_similarity_api:
@@ -1733,9 +1730,10 @@ workflows:
           requires:
            - test_frontend
            - test_backend
-           - cucumber_test
            - test_similarity_api      
-      
+      - cucumber_test:
+          requires:
+            - build_and_lint
       # deploy
       - backup_upload_production:
           filters:
