@@ -95,9 +95,6 @@ commands:
     description: "Setup database and backend server for testing"
     steps:
       - run:
-          name: Add GitHub to known_hosts # unecessary?
-          command: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-      - run:
           name: Start backend server
           command: |
             yarn build
