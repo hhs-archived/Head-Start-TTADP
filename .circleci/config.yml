@@ -95,6 +95,9 @@ commands:
     description: "Setup database and backend server for testing"
     steps:
       - run:
+          name: Add GitHub to known_hosts # unecessary?
+          command: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+      - run:
           name: Start backend server
           command: |
             yarn build
@@ -918,6 +921,9 @@ jobs:
           path: reports
       - store_artifacts: # store frontend lint reports
           path: frontend/reports
+      - run:
+          name: Remove similarity api data
+          command: rm -rf similarity_api
       - persist_to_workspace:
           root: .
           paths:
@@ -935,9 +941,6 @@ jobs:
             - v2-pip-deps-{{ checksum "combined-requirements.txt" }}
             # If checksum is new, restore partial cache
             - v2-pip-deps-
-      - run:
-          name: Remove similarity api data
-          command: rm -rf similarity_api
       - run:
           name: Install python dependencies
           command: |
