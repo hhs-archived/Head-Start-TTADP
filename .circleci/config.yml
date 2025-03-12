@@ -91,8 +91,9 @@ commands:
       - run:
           name: Combine requirements.txt files to single file
           command: cat similarity_api/src/requirements.txt > << parameters.filename >>
-  setup_db:
-    description: "Setup database and backend server for testing"
+  
+  setup_server:
+    description: "Setup backend server for testing"
     steps:
       - run:
           name: Start backend server
@@ -101,19 +102,23 @@ commands:
             BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
           background: true
       - run:
+          name: Wait for server to start
+          command: ./bin/ping-server 3000
+  
+  setup_db:
+    description: "Setup database for testing"
+    steps:
+      - run:
           name: Run migrations ci
           command: yarn db:migrate:ci
       - run:
           name: Seed database
           command: yarn db:seed:ci
       - run:
-            name: Wait for server to start
-            command: ./bin/ping-server 3000
-      - run:
-            name: Monitor database
-            command: |
-              docker attach  $(docker ps | grep postgres | awk '{print $1}')
-            background: true
+          name: Monitor database
+          command: |
+            docker attach  $(docker ps | grep postgres | awk '{print $1}')
+          background: true
 
   notify_new_relic:
     description: "Notify new relic of a deploy"
@@ -1118,6 +1123,7 @@ jobs:
       - setup_remote_docker:
           version: default
       - setup_db
+      - setup_server
       - run:
           name: Install playwright dependencies
           command: |
@@ -1150,6 +1156,7 @@ jobs:
             BYPASS_AUTH=true CURRENT_USER_ID=5 yarn start:ci
           background: true
       - setup_db
+      - setup_server
       - run:
           name: Wait for server to start
           command: ./bin/ping-server 3000
