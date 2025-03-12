@@ -3,7 +3,7 @@ import {
   GoalTemplate,
   Goal,
 } from '../models';
-import { auditLogger } from '../logger';
+import { auditLogger, logger } from '../logger';
 import { changeGoalStatusWithSystemUser } from '../goalServices/changeGoalStatus';
 
 const createMonitoringGoals = async () => {
@@ -254,7 +254,6 @@ const createMonitoringGoals = async () => {
       }
     });
   } catch (error) {
-    console.log(`Error creating monitoring: ${error.message} | Stack Trace: ${error.stack}`);
     auditLogger.error(`Error creating monitoring: ${error.message} | Stack Trace: ${error.stack}`);
   }
 };
