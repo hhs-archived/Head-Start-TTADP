@@ -19,8 +19,10 @@ note right
   Review must have:
   - Status: 'Complete'
   - Delivery Date: Jan 21, 2025 or later
-  - Review Type: FA-1, FA-2, RAN, 'AIAN-DEF', 'Follow-up', 'FA1-FR', 'FA2-CR', 'Special'
-  - At least one active finding
+  - Review Type: FA-1, FA-2, RAN, AIAN-DEF,\nFollow-up, FA1-FR, FA2-CR, Special
+  - At least one finding with status: 'Active'
+
+  *Delivery Date = Report Received Date in HSES
 end note
 
 if (Matching grants found?) then (yes)
@@ -28,6 +30,17 @@ if (Matching grants found?) then (yes)
   :Mark status as 'Not Started';
   :Set source as 'monitoring';
 endif
+
+:Find existing Monitoring goals\nthat are 'Closed' or 'Suspended'\nbut have new active findings;
+
+if (Goals to reopen?) then (yes)
+  :Reopen goals;
+  :Mark status as 'Not Started';
+endif
+
+note right
+  If any step fails, the entire\ntransaction is rolled back.
+end note
 
 :Commit Transaction;
 

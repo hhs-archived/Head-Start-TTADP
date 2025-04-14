@@ -12,6 +12,9 @@ start
 if (New files?) then (yes)
   repeat
     :Stream file to S3;
+  note right
+    Collect the oldest ZIP file that has not previously been collected
+  end note
     if (Upload succeeds?) then (yes)
       :Mark as COLLECTED;
     else (no)
@@ -24,9 +27,17 @@ endif
 :Run `yarn import:system process <importId>`;
 if (Files to process?) then (yes)
   :Download ZIP from S3;
+  note right
+    Process the oldest zip that hasn't yet been processed
+  end note
   :Extract XML files;
+
   repeat
     :Remap, validate;
+  note right
+    Schema definition for each XML file is fetched
+    dynamically from Imports.definitions
+  end note
     :Insert/update/delete records;
     :Log schema, hash, record counts;
   repeat while (More XML files)
