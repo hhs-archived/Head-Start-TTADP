@@ -64,7 +64,7 @@ applications:
     strategy: rolling
     stack: cflinuxfs4
     buildpacks:
-      - python_buildpack
+      - https://github.com/cloudfoundry/python-buildpack.git
     path: similarity_api/src
     services:
       - ttahub-((env))
