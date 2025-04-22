@@ -126,7 +126,6 @@ workflows:
 
   import_data_cron:
     # scheduled job to download and process monitoring data
-    when: pipeline.trigger_source == "scheduled_pipeline"
     triggers:
     - schedule:
         cron: "0 13 * * *" # 1PM UTC = 9AM EST
@@ -140,7 +139,7 @@ workflows:
 
   import_data_manual:
     # for manual testing of the data import workflow
-    when: pipeline.parameters.action == "import_data" and pipeline.trigger_source == "api"
+    when: pipeline.parameters.action == "import_data"
     jobs:
     - run_import_job:
         target_env: "<< pipeline.parameters.target_env >>"
@@ -148,7 +147,7 @@ workflows:
   restore_db_manual:
     # restore the anonymized db snapshot to a lower env db and run migrations
     # uses the last production backup, does not interact with prod or modify snapshots
-    when: pipeline.parameters.action == "restore_db" and pipeline.trigger_source == "api"
+    when: pipeline.parameters.action == "restore_db"
     jobs:
     - restore_db_job:
         serial-group: tta-automation-lock
@@ -162,7 +161,6 @@ workflows:
     # backup temp db to snapshot
     # restore temp snapshot to lower env dbs
     # run migrations
-    when: pipeline.trigger_source == "scheduled_pipeline"
     triggers:
     - schedule:
         cron: "0 4 * * *" # 4AM UTC = 12AM EST
