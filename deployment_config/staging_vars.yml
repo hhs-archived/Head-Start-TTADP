@@ -6,7 +6,7 @@ worker_instances: 1
 worker_memory: 512M
 similarity_api_instances: 1
 similarity_api_memory: 1GB
-similarity_api_disk_quota: 6GB
+similarity_api_disk_quota: 8GB
 
 LOG_LEVEL: info
 AUTH_BASE: https://staging.hses.ohs.acf.hhs.gov
@@ -52,11 +52,11 @@ ITAMS_MD_PASSWORD: '${ITAMS_MD_PASSWORD}'
 SMARTSHEET_ACCESS_TOKEN: '${SMARTSHEET_ACCESS_TOKEN}'
 
 new_relic_app_id: '868729138'
-new_relic_license: ${NEW_RELIC_LICENSE_KEY}
+new_relic_license: '${NEW_RELIC_LICENSE_KEY}'
 
 REACT_APP_GTM_ENABLED: '${STAGING_GTM_ENABLED}'
 REACT_APP_GTM_ID: '${GLOBAL_GTM_ID}'
 REACT_APP_GTM_AUTH: '${STAGING_GTM_AUTH}'
 REACT_APP_GTM_PREVIEW: '${STAGING_GTM_PREVIEW}'
 REACT_APP_WEBSOCKET_URL: '${WEBSOCKET_URL}'
-REACT_APP_INCLUDE_ACCESSIBILITY_CSS: 'false'
+REACT_APP_INCLUDE_ACCESSIBILITY_CSS: false
