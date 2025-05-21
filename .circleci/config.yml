@@ -148,6 +148,7 @@ workflows:
     jobs:
     - run_import_job:
         target_env: "<< pipeline.parameters.target_env >>"
+        slack_channel: acf-head-start-alerts-lower
 
   restore_db_manual:
     # restore the anonymized db snapshot to a lower env db and run migrations
